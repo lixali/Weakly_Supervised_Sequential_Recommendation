@@ -7,7 +7,7 @@
 # available at https://choosealicense.com/licenses/mit/.
 #
 # This modified file is released under the same license.
-
+import json
 import os
 import sys
 from logging import getLogger
@@ -212,6 +212,7 @@ class Trainer(object):
                 pbar.set_postfix_str(msg, refresh=False)
                 pbar.update(self.update_interval)
                 self.logger.info("\n" + "-"*50)
+                self.wandblogger.log_metrics({"epoch": epoch_idx, "train_loss": losses, "train_step": epoch_idx * len(train_data) + batch_idx}, head = "train")
             if self.config['debug'] and batch_idx >= 10:
                 break
 
@@ -348,7 +349,7 @@ class Trainer(object):
                     self.logger.info(train_loss_output)
                 if self.rank == 0:
                     self._add_train_loss_to_tensorboard(epoch_idx, train_loss)
-                self.wandblogger.log_metrics({'epoch': epoch_idx, 'train_loss': train_loss, 'train_step': epoch_idx}, head='train')
+                # self.wandblogger.log_metrics({'epoch': epoch_idx, 'train_loss': train_loss, 'train_step': epoch_idx}, head='train')
 
             if self.eval_step <= 0 or not valid_data:
                 if saved:
@@ -411,6 +412,8 @@ class Trainer(object):
             scores = self.model.module.predict(interaction, time_seq, self.item_feature)
         scores = scores.view(-1, self.tot_item_num)
         scores[:, 0] = -np.inf
+
+        # breakpoint()
         if history_index is not None:
             scores[history_index] = -np.inf
         return scores, positive_u, positive_i
@@ -488,19 +491,45 @@ class Trainer(object):
                 ) if show_progress and self.rank == 0 else eval_data
             )
             fwd_time = t.time()
+            relevance_score_data = []
             for batch_idx, batched_data in enumerate(iter_data):
                 start_time = fwd_time
                 data_time = t.time()
                 scores, positive_u, positive_i = eval_func(batched_data)
                 fwd_time = t.time()
 
+                if self.config["gen_relevance_score"]:
+                ### batched_data[0] is the interactions
+                ### batched_data[4] is the target item index
+
+                    interactions_in_batch, targets_in_batch = batched_data[0], batched_data[4]
+                    target_scores = scores[torch.arange(scores.size(0)), targets_in_batch]
+
+
+                    for i in range(len(targets_in_batch)):
+                        interactions_in_batch_item_ids = [
+                            eval_data.dataset.dataload.id2token["item_id"][ids] if ids != 0  else ids for ids in interactions_in_batch[i].tolist()
+                        ]
+                        # breakpoint()
+                        relevance_score_data.append({
+                        "interaction": interactions_in_batch_item_ids,
+                        "target": eval_data.dataset.dataload.id2token["item_id"][targets_in_batch[i].item()],
+                        "score": target_scores[i].item(),
+                    })
+
+                # breakpoint()
                 if show_progress and self.rank == 0:
                     iter_data.set_postfix_str(f"data: {data_time-start_time:.3f} fwd: {fwd_time-data_time:.3f}", refresh=False)
                 self.eval_collector.eval_batch_collect(scores, positive_u, positive_i)
+
+            if self.config["gen_relevance_score"]:            
+                with open(self.config["relevance_score_file"], "w") as f:
+                    for entry in relevance_score_data:
+                        f.write(json.dumps(entry) + "\n")
             num_total_examples = len(eval_data.sampler.dataset)
             struct = self.eval_collector.get_data_struct()
             result = self.evaluator.evaluate(struct)
-
+            # breakpoint()
             metric_decimal_place = 5 if self.config['metric_decimal_place'] == None else self.config['metric_decimal_place']
             for k, v in result.items():
                 result_cpu = self.distributed_concat(torch.tensor([v]).to(self.device), num_total_examples).cpu()

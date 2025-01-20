@@ -3,3 +3,9 @@
 code/log/
 code/log_tensorboard/
 code/saved/
+**model_*
+**jsonl
+dataset/
+information/
+outputs/
+wandb/

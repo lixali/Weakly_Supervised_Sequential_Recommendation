@@ -6,10 +6,11 @@ reproducibility: True
 checkpoint_dir: 'saved'
 show_progress: True
 
-log_wandb: False
-wandb_project: 'REC'
+log_wandb: True
+wandb_project: 'clueweb_pretrain_finetune'
 MAX_ITEM_LIST_LENGTH: 50
 MAX_TEXT_LENGTH: 64
+clueweb_project: 'clueweb90k_pretrain_hllm_filtered'
 
 data_path: ../dataset/                       # dataset path
 dataset: Pixel200K                        # dataset name

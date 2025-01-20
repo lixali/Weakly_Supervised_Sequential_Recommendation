@@ -105,7 +105,16 @@ def run_loop(local_rank, config_file=None, saved=True, extra_args=[]):
         logger.info(f'{msg.missing_keys = }')
         test_result = trainer.evaluate(test_loader, load_best_model=False, show_progress=config['show_progress'], init_model=True)
         logger.info(set_color('test result', 'yellow') + f': {test_result}')
-    else:
+    
+    if config['finetune_only']:
+        ckpt_path = os.path.join(config['checkpoint_dir'], 'pytorch_model.bin')
+        ckpt = torch.load(ckpt_path, map_location='cpu')
+        logger.info(f'Eval only model load from {ckpt_path}')
+        msg = trainer.model.load_state_dict(ckpt, False)
+        logger.info(f'{msg.unexpected_keys = }')
+        logger.info(f'{msg.missing_keys = }')
+
+    if not config["val_only"]:
         # training process
         best_valid_score, best_valid_result = trainer.fit(
             train_loader, valid_loader, saved=saved, show_progress=config['show_progress']

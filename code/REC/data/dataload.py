@@ -95,7 +95,7 @@ class Data:
         self.train_feat = None
         self.feat_name_list = ['inter_feat']  # self.inter_feat
 
-    def build(self):
+    def build(self, finetune_only, val_only):
         self.logger.info(f"build {self.dataset_name} dataload")
         self.sort(by='timestamp')
         user_list = self.inter_feat['user_id'].values
@@ -113,9 +113,13 @@ class Data:
         self.time_seq = time_seq
         train_feat = dict()
         indices = []
-
-        for index in grouped_index.values():
-            indices.extend(list(index)[:-2])
+        # breakpoint()
+        if finetune_only or val_only:
+            for index in grouped_index.values():
+                indices.extend(list(index)[:-2])
+        else:
+            for index in grouped_index.values():
+                indices.extend(list(index))
         for k in self.inter_feat:
             train_feat[k] = self.inter_feat[k].values[indices]
 

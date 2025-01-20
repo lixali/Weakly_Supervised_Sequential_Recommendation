@@ -30,7 +30,8 @@ class WandbLogger(object):
             if self._wandb.run is None:
                 self._wandb.init(
                     project=self.config.wandb_project,
-                    config=self.config
+                    config=self.config,
+                    name=self.config.clueweb_project
                 )
 
             self._set_steps()
