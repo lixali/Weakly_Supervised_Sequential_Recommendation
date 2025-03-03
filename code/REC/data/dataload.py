@@ -95,7 +95,7 @@ class Data:
         self.train_feat = None
         self.feat_name_list = ['inter_feat']  # self.inter_feat
 
-    def build(self, finetune_only, val_only):
+    def build(self, config):
         self.logger.info(f"build {self.dataset_name} dataload")
         self.sort(by='timestamp')
         user_list = self.inter_feat['user_id'].values
@@ -114,12 +114,18 @@ class Data:
         train_feat = dict()
         indices = []
         # breakpoint()
-        if finetune_only or val_only:
+
+        ### this if will split into train, validation and test set
+        if config["finetune_clueweb"] or config["val_only"] or config["baseline_train"]:
             for index in grouped_index.values():
                 indices.extend(list(index)[:-2])
-        else:
+
+        ### this elif will not split, eveything is in train set
+        elif config["gen_relevance_score"] or config["clueweb_pretrain"]:
             for index in grouped_index.values():
                 indices.extend(list(index))
+
+
         for k in self.inter_feat:
             train_feat[k] = self.inter_feat[k].values[indices]
 
@@ -359,3 +365,47 @@ class Data:
         edge_weight = norm_deg[edge_index[0]] * norm_deg[edge_index[1]]
 
         return edge_index, edge_weight
+
+
+class DataForEval(Data):
+    def __init__(self, config):
+        super().__init__(config)  # Call the parent class's __init__ method
+        self.dataset_name = config['dataset_for_eval']  # Override the dataset_name attribute
+        self._from_scratch()
+
+    ### this build only has one difference than the Data class's build() function, the difference is that it will always get rid of the last two element when building the indices by using "indices.extend(list(index)[:-2])" 
+    ### maybe this build is not needed, because we are not using DataForEval for training anyways 
+    def build(self, config):
+        self.logger.info(f"build {self.dataset_name} dataload")
+        self.sort(by='timestamp')
+        user_list = self.inter_feat['user_id'].values
+        item_list = self.inter_feat['item_id'].values
+        timestamp_list = self.inter_feat['timestamp'].values
+        grouped_index = self._grouped_index(user_list)
+
+        user_seq = {}
+        time_seq = {}
+        for uid, index in grouped_index.items():
+            user_seq[uid] = item_list[index]
+            time_seq[uid] = timestamp_list[index]
+
+        self.user_seq = user_seq
+        self.time_seq = time_seq
+        train_feat = dict()
+        indices = []
+        # breakpoint()
+
+        for index in grouped_index.values():
+            indices.extend(list(index)[:-2])
+
+
+
+        for k in self.inter_feat:
+            train_feat[k] = self.inter_feat[k].values[indices]
+
+        if self.config['MODEL_INPUT_TYPE'] == InputType.AUGSEQ:
+            train_feat = self._build_aug_seq(train_feat)
+        elif self.config['MODEL_INPUT_TYPE'] == InputType.SEQ:
+            train_feat = self._build_seq(train_feat)
+
+        self.train_feat = train_feat

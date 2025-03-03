@@ -18,7 +18,7 @@
 # enter a config env
 eval "$(conda shell.bash hook)"
 conda activate hllm
-checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_clueweb_sbatch_epoch_6_pretrain_script_batchszie_128_deepspeed_3_hllm_filtered_from_superset/HLLM-0.pth/pretrained/"
+checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_200k_clueweb_sbatch_epoch_6_pretrain_script_batchszie_128_deepspeed_3_epoch_6_hllm_clueweb300k_train_filtered_p4/HLLM-0.pth/pretrained/10_percent_data/"
 
 # checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_clueweb_sbatch_epoch_6_pretrain_script_batchszie_128_deepspeed_3/HLLM-0.pth/pretrained/"
 # checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_clueweb_sbatch_epoch_6_pretrain_script_batchszie_64_deepspeed_3/HLLM-0.pth/pretrained/"
@@ -35,7 +35,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset Pixel200K_ori \
+    --dataset Pixel200K_filtered_10_percent \
     --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \
@@ -47,7 +47,10 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --text_path $info_path \
     --text_keys '[\"title\",\"tag\",\"description\"]' \
     --val_only False \
-    --finetune_only True \
+    --finetune_clueweb True \
+    --baseline_train False \
+    --clueweb_pretrain False \
+    --gen_relevance_score False \
     --gradient_checkpointing True \
     --stage 3 \
     --gen_relevance_score False \

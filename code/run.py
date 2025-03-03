@@ -81,9 +81,15 @@ def run_loop(local_rank, config_file=None, saved=True, extra_args=[]):
         logger.info(f"Update text_path to {config['text_path']}")
 
     # get model and data
+    #### load_data return a Data class type (Data class is a self defined class) ; so dataload is a self defined Data class
     dataload = load_data(config)
+
     train_loader, valid_loader, test_loader = bulid_dataloader(config, dataload)
     print(f"{len(train_loader) = }")
+    
+    # if config["clueweb_pretrain"]: 
+    #     dataload_for_eval = load_data_for_eval(config)
+    #     _, val_loader_for_eval, test_loader_for_eval = bulid_dataloader(config, dataload_for_eval)
 
     model = get_model(config['model'])(config, dataload)
     # model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(device)
@@ -96,17 +102,8 @@ def run_loop(local_rank, config_file=None, saved=True, extra_args=[]):
     logger.info(dataload)
     logger.info(model)
 
-    if config['val_only']:
-        ckpt_path = os.path.join(config['checkpoint_dir'], 'pytorch_model.bin')
-        ckpt = torch.load(ckpt_path, map_location='cpu')
-        logger.info(f'Eval only model load from {ckpt_path}')
-        msg = trainer.model.load_state_dict(ckpt, False)
-        logger.info(f'{msg.unexpected_keys = }')
-        logger.info(f'{msg.missing_keys = }')
-        test_result = trainer.evaluate(test_loader, load_best_model=False, show_progress=config['show_progress'], init_model=True)
-        logger.info(set_color('test result', 'yellow') + f': {test_result}')
-    
-    if config['finetune_only']:
+    ### val_only , finetune_clueweb , gen_relevance_score , baseline_train , clueweb_pretrain can only have one True , rest are False
+    if config['val_only'] or config["gen_relevance_score"]:
         ckpt_path = os.path.join(config['checkpoint_dir'], 'pytorch_model.bin')
         ckpt = torch.load(ckpt_path, map_location='cpu')
         logger.info(f'Eval only model load from {ckpt_path}')
@@ -114,15 +111,41 @@ def run_loop(local_rank, config_file=None, saved=True, extra_args=[]):
         logger.info(f'{msg.unexpected_keys = }')
         logger.info(f'{msg.missing_keys = }')
 
-    if not config["val_only"]:
+        test_result = trainer.evaluate(test_loader, load_best_model=False, show_progress=config['show_progress'], init_model=True)
+        
+        logger.info(set_color('test result', 'yellow') + f': {test_result}')
+    
+    elif config['finetune_clueweb']:
+        ckpt_path = os.path.join(config['checkpoint_dir'], 'pytorch_model.bin')
+        ckpt = torch.load(ckpt_path, map_location='cpu')
+        logger.info(f'Eval only model load from {ckpt_path}')
+        msg = trainer.model.load_state_dict(ckpt, False)
+        logger.info(f'{msg.unexpected_keys = }')
+        logger.info(f'{msg.missing_keys = }')
+
+    if config["finetune_clueweb"] or config["baseline_train"] or config["clueweb_pretrain"]:
         # training process
-        best_valid_score, best_valid_result = trainer.fit(
-            train_loader, valid_loader, saved=saved, show_progress=config['show_progress']
-        )
+
+        # breakpoint()
+
+        if config["finetune_clueweb"] or config["baseline_train"] or config["clueweb_pretrain"]:
+            best_valid_score, best_valid_result = trainer.fit(
+                train_loader, valid_loader, saved=saved, show_progress=config['show_progress']
+            )
+        # elif config["clueweb_pretrain"]:
+        #     best_valid_score, best_valid_result = trainer.fit(
+        #         train_loader, val_loader_for_eval, saved=saved, show_progress=config['show_progress']
+        #     )
+            # breakpoint()
+            # pass
+
         logger.info(f'Trianing Ended' + set_color('best valid ', 'yellow') + f': {best_valid_result}')
 
         # model evaluation
-        test_result = trainer.evaluate(test_loader, load_best_model=saved, show_progress=config['show_progress'])
+        if config["finetune_clueweb"] or config["baseline_train"] or config["clueweb_pretrain"]:
+            test_result = trainer.evaluate(test_loader, load_best_model=saved, show_progress=config['show_progress'])
+        # elif config["clueweb_pretrain"]:
+        #     test_result = trainer.evaluate(test_loader_for_eval, load_best_model=saved, show_progress=config['show_progress'])
 
         logger.info(set_color('best valid ', 'yellow') + f': {best_valid_result}')
         logger.info(set_color('test result', 'yellow') + f': {test_result}')

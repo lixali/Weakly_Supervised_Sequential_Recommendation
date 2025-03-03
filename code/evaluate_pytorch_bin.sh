@@ -1,4 +1,4 @@
-checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_clueweb_sbatch_epoch_6_pretrain_script_batchszie_128_deepspeed_3_hllm_filtered_from_superset/HLLM-0.pth/pretrained"
+checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_200k_clueweb_amazon_pretrain_script_batchszie_128_deepspeed_3_pretrained_threhold_0p88_phase_2/HLLM-0.pth/pretrained/"
 # checkpoint_dir="../model_clueweb_sbatch_epoch_6_pretrain_script_batchszie_64_deepspeed_3/HLLM-0.pth/pretrained/"
 
 pretrain_dir="/data/datasets/hf_cache/sample/TinyLlama_redownload_Jan_9_2025/TinyLlama-1.1B-intermediate-step-1431k-3T/"
@@ -15,7 +15,7 @@ CUDA_VISIBLE_DEVICES=0,1 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset Pixel200K_ori \
+    --dataset Pixel200K_filter \
     --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \
@@ -24,7 +24,9 @@ CUDA_VISIBLE_DEVICES=0,1 python3 ${file_prefix}/main.py \
     --text_keys '[\"title\",\"tag\",\"description\"]' \
     --text_path $info_path \
     --val_only True \
-    --finetune_only False \
+    --finetune_clueweb False \
+    --clueweb_pretrain False \
+    --baseline_train False \
     --item_pretrain_dir $pretrain_dir \
     --user_pretrain_dir $pretrain_dir \
     --gradient_checkpointing True \

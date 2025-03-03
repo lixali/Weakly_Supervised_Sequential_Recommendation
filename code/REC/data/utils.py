@@ -17,6 +17,7 @@ from REC.data.dataset import *
 from REC.utils import set_color
 from functools import partial
 from .dataload import Data
+from .dataload import DataForEval
 import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
@@ -29,6 +30,9 @@ def load_data(config):
     dataload = Data(config)
     return dataload
 
+def load_data_for_eval(config):
+    dataload_for_eval = DataForEval(config)
+    return dataload_for_eval
 
 def bulid_dataloader(config, dataload):
     '''
@@ -42,7 +46,7 @@ def bulid_dataloader(config, dataload):
     }
 
     model_name = config['model']
-    dataload.build(config["finetune_only"], config["val_only"])
+    dataload.build(config)
 
     dataset_module = importlib.import_module('REC.data.dataset')
     train_set_name, test_set_name, collate_fn_name = dataset_dict[model_name]
@@ -57,6 +61,8 @@ def bulid_dataloader(config, dataload):
     test_set_class = getattr(dataset_module, test_set_name)
     eval_collate_fn = getattr(dataset_module, collate_fn_name)
 
+    ### if gen_relevance_score is True, it means that I will want all the data to be used as testing, the most convenient way is to make the train converted to test
+    # if config["gen_relevance_score"]:train_data = test_set_class(config, dataload, phase='test') 
     train_data = train_set_class(config, dataload)
     valid_data = test_set_class(config, dataload, phase='valid')
     test_data = test_set_class(config, dataload, phase='test')

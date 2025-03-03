@@ -1,6 +1,6 @@
 #!/bin/bash
 
-checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_benchmark_batchszie_64_deepspeed_3_Jan_16_2025_need_training_loss_vs_iteration/HLLM-0.pth/"
+checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_200k_clueweb_amazon_pretrain_script_batchszie_128_deepspeed_3_pretrained_fasttext440k_HLLM_filtered_threhold_0p45/HLLM-0.pth/pretrained"
 
 # checkpoint_dir="/data/datasets/hf_cache/sample//TinyLlama-1.1B-intermediate-step-1431k-3T/"
 # checkpoint_dir="/data/datasets/hf_cache/sample/HLLM/model_benchmark_jingyuan_script_A100_80GB_batchszie_64_deepspeed_3/HLLM-0.pth/"
@@ -18,13 +18,13 @@ CUDA_VISIBLE_DEVICES=0,1 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset Pixel200K_ori \
+    --dataset amazon_books_30_percent \
     --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \
     --checkpoint_dir $checkpoint_dir \
     --optim_args.learning_rate 1e-4 \
-    --text_keys '[\"title\",\"tag\",\"description\"]' \
+    --text_keys '[\"title\",\"description\"]' \
     --text_path $info_path \
     --val_only True \
     --finetune_clueweb False \

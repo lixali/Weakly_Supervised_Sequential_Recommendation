@@ -188,7 +188,13 @@ class Trainer(object):
             self.optimizer.zero_grad()
             data = self.to_device(data)
             data_time = t.time()
+            # self.logger.info(f"############{batch_idx}###########")
+            # self.logger.info(repr(data)) 
+            # if batch_idx == 137:
+                # breakpoint()
             losses = self.model(data)
+            # self.logger.info(f"loss is {losses}")
+            # self.logger.info("$$$$$$$$$$$$")
             fwd_time = t.time()
             if self.config['loss'] and self.config['loss'] == 'nce':
                 model_out = losses
@@ -497,7 +503,6 @@ class Trainer(object):
                 data_time = t.time()
                 scores, positive_u, positive_i = eval_func(batched_data)
                 fwd_time = t.time()
-
                 if self.config["gen_relevance_score"]:
                 ### batched_data[0] is the interactions
                 ### batched_data[4] is the target item index
@@ -521,11 +526,13 @@ class Trainer(object):
                 if show_progress and self.rank == 0:
                     iter_data.set_postfix_str(f"data: {data_time-start_time:.3f} fwd: {fwd_time-data_time:.3f}", refresh=False)
                 self.eval_collector.eval_batch_collect(scores, positive_u, positive_i)
+            
 
             if self.config["gen_relevance_score"]:            
                 with open(self.config["relevance_score_file"], "w") as f:
                     for entry in relevance_score_data:
                         f.write(json.dumps(entry) + "\n")
+            
             num_total_examples = len(eval_data.sampler.dataset)
             struct = self.eval_collector.get_data_struct()
             result = self.evaluator.evaluate(struct)
