@@ -183,7 +183,9 @@ class Trainer(object):
                 file=sys.stdout
             )
         bwd_time = t.time()
+        # breakpoint()
         for batch_idx, data in enumerate(train_data):
+            # breakpoint()
             start_time = bwd_time
             self.optimizer.zero_grad()
             data = self.to_device(data)
@@ -385,7 +387,7 @@ class Trainer(object):
                         self.tensorboard.add_scalar(name.replace('@', '_'), value, epoch_idx)
                 self.wandblogger.log_metrics({**valid_result, 'valid_step': valid_step}, head='valid')
 
-                if update_flag:
+                if update_flag or self.epochs == 2:
                     if saved:
                         self._save_checkpoint(epoch_idx, verbose=verbose)
                     self.best_valid_result = valid_result

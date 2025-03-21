@@ -25,12 +25,13 @@ from torch_geometric.utils import degree
 
 
 class Data:
-    def __init__(self, config):
+    def __init__(self, config, use_finetune_data_as_guidance = False):
         self.config = config
         self.dataset_path = config['data_path']
         self.dataset_name = config['dataset']
         self.data_split = config['data_split']
         self.item_data = config['item_data']
+        self.use_finetune_dataset_as_guidance = use_finetune_data_as_guidance
         self.logger = getLogger()
         self._from_scratch()
 
@@ -116,12 +117,12 @@ class Data:
         # breakpoint()
 
         ### this if will split into train, validation and test set
-        if config["finetune_clueweb"] or config["val_only"] or config["baseline_train"]:
+        if config["finetune_clueweb"] or config["val_only"] or config["baseline_train"] or self.use_finetune_dataset_as_guidance:
             for index in grouped_index.values():
                 indices.extend(list(index)[:-2])
 
         ### this elif will not split, eveything is in train set
-        elif config["gen_relevance_score"] or config["clueweb_pretrain"]:
+        elif (config["gen_relevance_score"] or config["clueweb_pretrain"]) and not self.use_finetune_dataset_as_guidance:
             for index in grouped_index.values():
                 indices.extend(list(index))
 

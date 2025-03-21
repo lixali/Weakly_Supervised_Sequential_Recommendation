@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=eval_pixerec
+#SBATCH --job-name=eval_electronics
 #SBATCH --output=outputs/%x-%j.out
 #SBATCH --error=outputs/%x-%j.err # I put this in directory `outputs`, if the directory doesn't exists, job will fail immediately
 
@@ -33,13 +33,13 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset Pixel200K_filtered_25_percent \
+    --dataset amazon_electronics_25_percent \
     --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \
     --checkpoint_dir $checkpoint_dir \
     --optim_args.learning_rate 1e-4 \
-    --text_keys '[\"title\",\"tag\",\"description\"]' \
+    --text_keys '[\"title\",\"description\"]' \
     --text_path $info_path \
     --val_only True \
     --finetune_clueweb False \
@@ -50,4 +50,3 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --gradient_checkpointing True \
     --stage 3 \
     --gen_relevance_score False \
-    # --text_keys '[\"title\",\"tag\",\"description\"]' \

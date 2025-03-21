@@ -18,14 +18,15 @@
 # enter a config env
 eval "$(conda shell.bash hook)"
 conda activate hllm
-checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_200k_clueweb_sbatch_epoch_6_pretrain_script_batchszie_128_deepspeed_3_epoch_6_hllm_clueweb300k_train_filtered_p4/HLLM-0.pth/pretrained/10_percent_data/"
 
-# checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_clueweb_sbatch_epoch_6_pretrain_script_batchszie_128_deepspeed_3/HLLM-0.pth/pretrained/"
-# checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_clueweb_sbatch_epoch_6_pretrain_script_batchszie_64_deepspeed_3/HLLM-0.pth/pretrained/"
+run_name="model_pixelrec_proposed_batchszie_64_deepspeed_3_25_percent_model_filtered_threhold_0p35_march_9_2025_correct_pool_HLLM-0.pth_25_percent_SFT"
 
-# pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/tinyllama"
-# pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_clueweb_sbatch_pretrain_script_batchszie_64_deepspeed_3/HLLM-0.pth/"
-pretrain_dir="/data/datasets/hf_cache/sample/TinyLlama_redownload_Jan_9_2025/TinyLlama-1.1B-intermediate-step-1431k-3T/"
+sed -i "s/^clueweb_project: .*/clueweb_project: '$run_name'/" overall/LLM_deepspeed.yaml
+
+
+checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_pixelrec_continual_pretrain_batchszie_64_deepspeed_3_25_percent_model_filtered_threhold_0p35_5_epochs_march_8_2025_correct_hllm_data_pool/HLLM-0.pth/pretrained/25_percent_SFT"
+pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/"
+
 info_path="/data/user_data/lixiangl/HLLM_2/HLLM/information"
 data_path="/data/user_data/lixiangl/HLLM_2/HLLM/dataset"
 
@@ -35,7 +36,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset Pixel200K_filtered_10_percent \
+    --dataset Pixel200K_filtered_25_percent \
     --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \

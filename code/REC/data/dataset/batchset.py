@@ -7,7 +7,7 @@
 # available at https://choosealicense.com/licenses/mit/.
 #
 # This modified file is released under the same license.
-
+import os
 from torch.utils.data import Dataset
 
 import torch
@@ -22,7 +22,7 @@ class BatchTextDataset(Dataset):
         self.item_list = dataload.id2token['item_id']
         self.max_text_length = config['MAX_TEXT_LENGTH']
         self.device = config['device']
-
+        self.config = config
         self.text_path = config['text_path']
         self.text_keys = config['text_keys']
         self.tokenizer = AutoTokenizer.from_pretrained(config['item_pretrain_dir'], trust_remote_code=True)
@@ -37,6 +37,13 @@ class BatchTextDataset(Dataset):
         return self.item_num
 
     def load_content(self):
+
+        # if self.config["clueweb_pretrain"]:
+        #     eval_text_path = os.path.join("/data/user_data/lixiangl/HLLM_2/HLLM/information", self.config['dataset_for_eval'] + '.csv')
+        #     # breakpoint()
+        #     self.env = pd.read_csv(eval_text_path, delimiter=',', dtype={'item_id': str})
+        #     # breakpoint()
+        # else:
         self.env = pd.read_csv(self.text_path, delimiter=',', dtype={'item_id': str})
         self.env = self.env[self.text_keys + ['item_id']]
         self.env = self.env.set_index('item_id').T.to_dict()

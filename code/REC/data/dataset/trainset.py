@@ -171,12 +171,14 @@ class TextSEQTrainDataset(Dataset):
         sequence = sequence[-max_length:]
         vq_time = []
         for time in sequence:
+            # breakpoint()
+            if time > 1e12: time = time/1000
             dt = datetime.datetime.fromtimestamp(time, pytz.timezone('UTC'))
             vq_time.append([dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second])
         return torch.tensor(vq_time, dtype=torch.long)
 
     def __getitem__(self, index):
-
+        # breakpoint()
         item_seq = self.train_seq[index]
         item_seq, neg_item, masked_index = self.reconstruct_train_data(item_seq)
         time_seq = self.train_time_seq[index]

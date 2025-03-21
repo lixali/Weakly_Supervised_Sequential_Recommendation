@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=benchmark_amazon
+#SBATCH --job-name=benchmark_pixelrec
 #SBATCH --output=outputs/%x-%j.out
 #SBATCH --error=outputs/%x-%j.err # I put this in directory `outputs`, if the directory doesn't exists, job will fail immediately
 
@@ -19,11 +19,15 @@
 eval "$(conda shell.bash hook)"
 conda activate hllm
 
-checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_benchmark_batchszie_64_deepspeed_3_Feb_5_2025_need_training_loss_vs_iteration_10_percent_data/"
+run_name="model_benchmark_batchszie_64_deepspeed_3_March_6_2025_25_percent_data_correct_pool"
+
+sed -i "s/^clueweb_project: .*/clueweb_project: '$run_name'/" overall/LLM_deepspeed.yaml
+
+checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/${run_name}/"
 
 # pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/tinyllama"
 # pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_clueweb_sbatch_pretrain_script_batchszie_64_deepspeed_3/HLLM-0.pth/"
-pretrain_dir="/data/datasets/hf_cache/sample/TinyLlama_redownload_Jan_9_2025/TinyLlama-1.1B-intermediate-step-1431k-3T/"
+pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/"
 info_path="/data/user_data/lixiangl/HLLM_2/HLLM/information"
 data_path="/data/user_data/lixiangl/HLLM_2/HLLM/dataset"
 
@@ -32,7 +36,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset Pixel200K_filtered_10_percent \
+    --dataset Pixel200K_filtered_25_percent \
     --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \

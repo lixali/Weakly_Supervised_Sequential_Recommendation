@@ -26,8 +26,8 @@ import math
 import copy
 
 
-def load_data(config):
-    dataload = Data(config)
+def load_data(config, use_finetune_data_as_guidance):
+    dataload = Data(config, use_finetune_data_as_guidance)
     return dataload
 
 def load_data_for_eval(config):
