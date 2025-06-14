@@ -10,7 +10,7 @@ log_wandb: True
 wandb_project: 'clueweb_pretrain_finetune'
 MAX_ITEM_LIST_LENGTH: 50
 MAX_TEXT_LENGTH: 64
-clueweb_project: 'model_microlens_continual_pretrain_batchszie_128_deepspeed_3_epochs_5_eval_same_data_further_curate_corpus_25_percent_modal_HLLM_filtered_threhold_0p6_March_21_2025'
+clueweb_project: 'model_microlens_50_percent_users_30_percent_inter_benchmark_batchszie_64_deepspeed_3_April_17_2025'
 
 data_path: ../dataset/                       # dataset path
 dataset: Pixel200K                        # dataset name

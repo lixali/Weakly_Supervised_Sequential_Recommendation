@@ -544,6 +544,8 @@ class HSTU(BaseModel):
 
     @torch.no_grad()
     def compute_item_all(self):
+        print(f"[DEBUG] item_embedding.weight.shape = {self.item_embedding.weight.shape}")
+
         weight = self.item_id_proj_tower(self.item_embedding.weight)
         return weight / weight.norm(dim=-1, keepdim=True)
 

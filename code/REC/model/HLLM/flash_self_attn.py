@@ -90,9 +90,31 @@ def compute_flash_attention(
     qkv = torch.stack([q, k, v], dim=2)  # [bs, seq_len, 3, num_attention_heads, attn_head_size]
 
     if cu_input_lens is not None:
+
+        '''
+        #### modified code starting ###
+
+        qkv_list = []
+        for i in range(qkv.size(0)):  # iterate over the batch
+
+            valid_length = cu_input_lens[i].item()
+            # Extract only the first 'valid_length' tokens for the i-th batch element.
+            qkv_list.append(qkv[i, :valid_length])
+            # Concatenate the valid tokens from all batch elements.
+        qkv = torch.cat(qkv_list, dim=0)  # Now shape: (sum(cu_input_lens), 3, num_attention_heads, attn_head_size)
+
+        # Compute cumulative sequence lengths and maximum sequence length.
+        cu_seqlens = F.pad(cu_input_lens.cumsum(dim=0, dtype=torch.int32), (1, 0))
+        max_seqlen = cu_input_lens.max().item()
+        #### modified code ending ###
+        
+        '''
+
+        ##''' #### original code
         qkv.squeeze_(0)
         cu_seqlens = F.pad(cu_input_lens.cumsum(dim=0, dtype=torch.int32), (1, 0))
         max_seqlen = cu_input_lens.max().item()
+        ##'''
         out = flash_self_attention(
             qkv,
             causal=causal,
@@ -119,7 +141,6 @@ def compute_flash_attention(
         qkv = qkv[cur_mask]
         cu_seqlens = F.pad(seqlens.cumsum(dim=0, dtype=torch.int32), (1, 0))
         max_seqlen = seqlens.max().item()
-
         out = flash_self_attention(
             qkv,
             causal=causal,

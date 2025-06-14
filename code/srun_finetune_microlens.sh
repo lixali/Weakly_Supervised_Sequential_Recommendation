@@ -19,13 +19,13 @@
 eval "$(conda shell.bash hook)"
 conda activate hllm
 
-run_name=model_microlens_proposed_batchszie_64_deepspeed_3_pretrain_5_epoch_march_20_2025_HLLM-0.pth_25_percent_SFT
-# run_name=model_microlens_proposed_batchszie_64_deepspeed_3_pretrain_5_epoch_march_20_2025_more_curated_eval_same_data_filtered_threshold_0p5_HLLM-0.pth_25_percent_SFT
+run_name=model_microlens_proposed_batchszie_64_deepspeed_3_pretrain_5_epoch_April_11_2025_eval_SFT_data_HLLM-0.pth_15_percent_SFT_second_run
+# run_name=model_microlens_proposed_batchszie_64_deepspeed_3_pretrain_5_epoch_march_25_2025_more_curated_eval_SFT_data_filtered_threshold_0p65_HLLM-0.pth_50_percent_SFT
 
 sed -i "s/^clueweb_project: .*/clueweb_project: '$run_name'/" overall/LLM_deepspeed.yaml
 
 
-checkpoint_dir=/data/user_data/lixiangl/HLLM_2/HLLM/model_microlens_continual_pretrain_batchszie_128_deepspeed_3_epochs_5_real_March_12_2025/HLLM-0.pth/pretrained/25_percent_SFT
+checkpoint_dir=/data/user_data/lixiangl/HLLM_2/HLLM/model_microlens_continual_pretrain_batchszie_128_deepspeed_3_epochs_5_eval_different_data_further_curate_corpus_March_13_2025/HLLM-0.pth/pretrained/15_percent_SFT_second_run
 pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/"
 
 info_path="/data/user_data/lixiangl/HLLM_2/HLLM/information"
@@ -37,7 +37,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset microlens_25_percent \
+    --dataset microlens_15_percent \
     --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \

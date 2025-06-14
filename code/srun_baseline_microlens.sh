@@ -11,7 +11,7 @@
 
 #SBATCH --gres=gpu:A100_40GB:4
 #SBATCH --time=2-00:00:00
-#SBATCH --mem=128G
+#SBATCH --mem=256G
 #SBATCH --cpus-per-task 16
 #SBATCH --nodes=1
 
@@ -19,7 +19,7 @@
 eval "$(conda shell.bash hook)"
 conda activate hllm
 
-run_name="model_microlens_25_percent_benchmark_batchszie_64_deepspeed_3_March_19_2025"
+run_name="model_microlens_50_percent_users_30_percent_inter_benchmark_batchszie_64_deepspeed_3_April_17_2025"
 
 sed -i "s/^clueweb_project: .*/clueweb_project: '$run_name'/" overall/LLM_deepspeed.yaml
 
@@ -37,7 +37,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset microlens_25_percent \
+    --dataset microlens_50_percent_users_30_percent_inter \
     --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \

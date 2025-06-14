@@ -1,0 +1,1 @@
+../TORCHRUN run.py --config_file /data/user_data/lixiangl/HLLM_2/HLLM/code/IDNet/sasrec.yaml overall/ID.yaml --optim_args.learning_rate 1e-4 --loss nce --train_batch_size 16 --MAX_ITEM_LIST_LENGTH 10 --epochs 50 --dataset Pixel200K_filtered_25_percent --stopping_step 5 --show_progress True --update_interval 100

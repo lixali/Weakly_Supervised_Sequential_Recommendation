@@ -7,7 +7,7 @@
 # available at https://choosealicense.com/licenses/mit/.
 #
 # This modified file is released under the same license.
-
+# import ipdb; ipdb.set_trace()
 from cProfile import run
 from logging import getLogger
 import torch
@@ -24,6 +24,11 @@ import argparse
 import torch.distributed as dist
 import torch
 import copy
+
+# import traceback
+# import pdb
+# pdb.set_trace()
+
 
 def convert_str(s):
     try:
@@ -99,7 +104,7 @@ def run_loop(local_rank, config_file=None, saved=True, extra_args=[]):
     # get model and data
     #### load_data return a Data class type (Data class is a self defined class) ; so dataload is a self defined Data class
     dataload = load_data(config, use_finetune_data_as_guidance=False)
-
+    # breakpoint()
     train_loader, valid_loader, test_loader = bulid_dataloader(config, dataload)
     print(f"{len(train_loader) = }")
     
@@ -117,7 +122,7 @@ def run_loop(local_rank, config_file=None, saved=True, extra_args=[]):
     logger.info(config)
     logger.info(dataload)
     logger.info(model)
-
+    # breakpoint()
     ### val_only , finetune_clueweb , gen_relevance_score , baseline_train , clueweb_pretrain can only have one True , rest are False
     if config['val_only'] or config["gen_relevance_score"]:
         ckpt_path = os.path.join(config['checkpoint_dir'], 'pytorch_model.bin')
@@ -138,7 +143,7 @@ def run_loop(local_rank, config_file=None, saved=True, extra_args=[]):
         msg = trainer.model.load_state_dict(ckpt, False)
         logger.info(f'{msg.unexpected_keys = }')
         logger.info(f'{msg.missing_keys = }')
-
+    
     if config["finetune_clueweb"] or config["baseline_train"] or config["clueweb_pretrain"]:
         # training process
 
@@ -184,4 +189,9 @@ if __name__ == '__main__':
     torch.cuda.set_device(local_rank)
     dist.init_process_group(backend='nccl')
 
-    run_loop(local_rank=local_rank, config_file=config_file, extra_args=extra_args)
+    try:
+        run_loop(local_rank=local_rank, config_file=config_file, extra_args=extra_args)
+    except Exception:
+        import traceback, pdb
+        traceback.print_exc()
+        pdb.post_mortem()

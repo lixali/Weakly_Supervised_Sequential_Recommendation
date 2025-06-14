@@ -1,0 +1,45 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: main.py with pdb and arguments",
+            "type": "python",
+            "request": "launch",
+            "module": "pdb",
+            "console": "integratedTerminal",
+            "env": {
+                "run_name": "model_microlens_15_percent_users_50_percent_inter_benchmark_batchszie_64_deepspeed_3_April_10_2025",
+                "checkpoint_dir": "/data/user_data/lixiangl/HLLM_2/HLLM/model_microlens_15_percent_users_50_percent_inter_benchmark_batchszie_64_deepspeed_3_April_10_2025/",
+                "pretrain_dir": "/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/",
+                "info_path": "/data/user_data/lixiangl/HLLM_2/HLLM/information",
+                "data_path": "/data/user_data/lixiangl/HLLM_2/HLLM/dataset",
+                "file_prefix": "/data/user_data/lixiangl/HLLM_2/HLLM/code"
+            },
+            "args": [
+                "${env:file_prefix}/main.py",
+                "--config_file", "${env:file_prefix}/overall/LLM_deepspeed.yaml",
+                "HLLM/HLLM.yaml",
+                "--loss", "nce",
+                "--epochs", "5",
+                "--dataset", "microlens_15_percent_users_50_percent_inter",
+                "--train_batch_size", "16",
+                "--MAX_TEXT_LENGTH", "256",
+                "--MAX_ITEM_LIST_LENGTH", "10",
+                "--checkpoint_dir", "${env:checkpoint_dir}",
+                "--optim_args.learning_rate", "1e-4",
+                "--item_pretrain_dir", "${env:pretrain_dir}",
+                "--user_pretrain_dir", "${env:pretrain_dir}",
+                "--data_path", "${env:data_path}",
+                "--text_path", "${env:info_path}",
+                "--text_keys", "[\"title\",\"tag\",\"description\"]",
+                "--val_only", "False",
+                "--finetune_clueweb", "False",
+                "--gen_relevance_score", "False",
+                "--baseline_train", "True",
+                "--clueweb_pretrain", "False",
+                "--gradient_checkpointing", "True",
+                "--stage", "3"
+            ]
+        }
+    ]
+}

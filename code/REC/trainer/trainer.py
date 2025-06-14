@@ -417,6 +417,7 @@ class Trainer(object):
             else:
                 scores = self.model((interaction, time_seq, self.item_feature), mode='predict')
         else:
+            # breakpoint()
             scores = self.model.module.predict(interaction, time_seq, self.item_feature)
         scores = scores.view(-1, self.tot_item_num)
         scores[:, 0] = -np.inf
@@ -428,6 +429,8 @@ class Trainer(object):
 
     @torch.no_grad()
     def compute_item_feature(self, config, data):
+
+        # print("###########enter compute_item_feature###############")
         if self.use_text:
             item_data = BatchTextDataset(config, data)
             item_batch_size = config['MAX_ITEM_LIST_LENGTH'] * config['train_batch_size']
@@ -486,9 +489,11 @@ class Trainer(object):
         with torch.no_grad():
             self.model.eval()
             eval_func = self._full_sort_batch_eval
-
+            # breakpoint()
             self.tot_item_num = eval_data.dataset.dataload.item_num
             self.compute_item_feature(self.config, eval_data.dataset.dataload)
+
+            # breakpoint()
             iter_data = (
                 tqdm(
                     eval_data,

@@ -1,0 +1,39 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: main.py with pdb and arguments",
+            "type": "python",
+            "request": "launch",
+            // "module": "pdb",
+            "console": "integratedTerminal",
+            "cwd": "/data/user_data/lixiangl/HLLM_2/HLLM/code",
+            "envFile": "${workspaceFolder}/.env",
+            "args": [
+                "main.py",
+                "--config_file", "overall/LLM_deepspeed.yaml",
+                "HLLM/HLLM.yaml",
+                "--loss", "nce",
+                "--epochs", "5",
+                "--dataset", "microlens_15_percent_users_50_percent_inter",
+                "--train_batch_size", "16",
+                "--MAX_TEXT_LENGTH", "256",
+                "--MAX_ITEM_LIST_LENGTH", "10",
+                "--checkpoint_dir", "/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/",
+                "--optim_args.learning_rate", "1e-4",
+                "--item_pretrain_dir", "/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/",
+                "--user_pretrain_dir", "/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/",
+                "--data_path", "/data/user_data/lixiangl/HLLM_2/HLLM/dataset",
+                "--text_path", "/data/user_data/lixiangl/HLLM_2/HLLM/information",
+                "--text_keys", "'[\"title\",\"tag\",\"description\"]'",
+                "--val_only", "False",
+                "--finetune_clueweb", "False",
+                "--gen_relevance_score", "False",
+                "--baseline_train", "True",
+                "--clueweb_pretrain", "False",
+                "--gradient_checkpointing", "True",
+                "--stage", "3"
+            ]
+        }
+    ]
+}

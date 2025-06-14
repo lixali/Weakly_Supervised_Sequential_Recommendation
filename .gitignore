@@ -5,7 +5,8 @@ code/log_tensorboard/
 code/saved/
 **model_*
 **jsonl
-dataset/
+dataset/*
+**dataset
 information/
 outputs/
 wandb/

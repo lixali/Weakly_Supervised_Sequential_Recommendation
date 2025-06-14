@@ -11,7 +11,7 @@
 
 #SBATCH --gres=gpu:A100_40GB:4
 #SBATCH --time=2-00:00:00
-#SBATCH --mem=128G
+#SBATCH --mem=256G
 #SBATCH --cpus-per-task 16
 #SBATCH --nodes=1
 

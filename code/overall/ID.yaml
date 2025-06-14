@@ -2,7 +2,7 @@
 seed: 2020
 state: INFO
 reproducibility: True
-checkpoint_dir: 'saved'
+checkpoint_dir: '/data/user_data/lixiangl/HLLM_2/HLLM/model_HSTU_pixelrec_5_percent_baseline_batchszie_32_x_4_deepspeed_3_epochs_50_learning_rate_e3_May_15_2025/'
 show_progress: False
 
 log_wandb: False

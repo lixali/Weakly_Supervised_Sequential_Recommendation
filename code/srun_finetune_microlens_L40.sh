@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=finetune_clueweb
+#SBATCH --job-name=finetune_microlens
 #SBATCH --output=outputs/%x-%j.out
 #SBATCH --error=outputs/%x-%j.err # I put this in directory `outputs`, if the directory doesn't exists, job will fail immediately
 
@@ -9,9 +9,11 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=lixiangl@andrew.cmu.edu
 
-#SBATCH --gres=gpu:A100_40GB:4
+#SBATCH --gres=gpu:L40:4
+#SBATCH --nodelist=babel-9-7,babel-13-37
+
 #SBATCH --time=2-00:00:00
-#SBATCH --mem=128G
+#SBATCH --mem=256G
 #SBATCH --cpus-per-task 16
 #SBATCH --nodes=1
 
@@ -19,12 +21,13 @@
 eval "$(conda shell.bash hook)"
 conda activate hllm
 
-run_name="model_pixelrec_proposed_batchszie_64_deepspeed_3_25_percent_model_filtered_threhold_0p35_march_9_2025_correct_pool_HLLM-0.pth_25_percent_SFT"
+run_name=model_microlens_proposed_batchszie_64_deepspeed_3_pretrain_5_epoch_April_11_2025_eval_SFT_data_HLLM-0.pth_20_percent_SFT
+# run_name=model_microlens_proposed_batchszie_64_deepspeed_3_pretrain_5_epoch_march_25_2025_more_curated_eval_SFT_data_filtered_threshold_0p65_HLLM-0.pth_50_percent_SFT
 
 sed -i "s/^clueweb_project: .*/clueweb_project: '$run_name'/" overall/LLM_deepspeed.yaml
 
 
-checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_pixelrec_continual_pretrain_batchszie_64_deepspeed_3_25_percent_model_filtered_threhold_0p35_5_epochs_march_8_2025_correct_hllm_data_pool/HLLM-0.pth/pretrained/25_percent_SFT"
+checkpoint_dir=/data/user_data/lixiangl/HLLM_2/HLLM/model_microlens_continual_pretrain_batchszie_128_deepspeed_3_epochs_5_eval_different_data_further_curate_corpus_March_13_2025/HLLM-0.pth/pretrained/20_percent_SFT
 pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/"
 
 info_path="/data/user_data/lixiangl/HLLM_2/HLLM/information"
@@ -36,7 +39,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset Pixel200K_filtered_25_percent \
+    --dataset microlens_20_percent \
     --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \
@@ -55,5 +58,4 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --gradient_checkpointing True \
     --stage 3 \
     --gen_relevance_score False \
-    # --text_keys '[\"title\",\"tag\",\"description\"]' \
 

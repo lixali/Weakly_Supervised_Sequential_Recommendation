@@ -4,7 +4,7 @@
 #SBATCH --output=outputs/%x-%j.out
 #SBATCH --error=outputs/%x-%j.err # I put this in directory `outputs`, if the directory doesn't exists, job will fail immediately
 
-#SBATCH --partition=preempt # check the partitions available and switch if you need a longer job/ different resources 
+#SBATCH --partition=general # check the partitions available and switch if you need a longer job/ different resources 
 
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=lixiangl@andrew.cmu.edu
@@ -16,7 +16,7 @@
 #SBATCH --nodes=1
 
 # enter a config env
-checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_pixelrec_continual_pretrain_batchszie_64_deepspeed_3_25_percent_model_filtered_threhold_0p35_march_5_2025/HLLM-0.pth/pretrained/25_percent_SFT/HLLM-0.pth/"
+checkpoint_dir=/data/user_data/lixiangl/HLLM_2/dev-branch/model_pixelrec300k_continual_pretrain_10_percent_benchmark_model_filtered_threshold_0p65_batchszie_128_deepspeed_3_epochs_5_eval_SFT_data_April_10_2025/HLLM-0.pth/pretrained/10_percent_SFT/HLLM-0.pth
 # checkpoint_dir="../model_clueweb_sbatch_epoch_6_pretrain_script_batchszie_64_deepspeed_3/HLLM-0.pth/pretrained/"
 
 pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/"
@@ -33,7 +33,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset Pixel200K_filtered_25_percent \
+    --dataset Pixel200K_10_percent \
     --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \

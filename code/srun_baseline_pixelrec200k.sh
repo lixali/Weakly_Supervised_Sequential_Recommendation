@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=continual_pretrain_microlens
+#SBATCH --job-name=benchmark_pixelrec
 #SBATCH --output=outputs/%x-%j.out
 #SBATCH --error=outputs/%x-%j.err # I put this in directory `outputs`, if the directory doesn't exists, job will fail immediately
 
@@ -19,26 +19,26 @@
 eval "$(conda shell.bash hook)"
 conda activate hllm
 
+# run_name="model_benchmark_batchszie_64_deepspeed_3_March_6_2025_15_percent_data_correct_pool"
+run_name="model_benchmark_batchszie_64_deepspeed_3_April_8_2025_5_percent_data"
 
-
-run_name="model_microlens_continual_pretrain_batchszie_128_deepspeed_3_epochs_5_eval_same_data_further_curate_corpus_25_percent_modal_HLLM_filtered_threhold_0p55_March_26_2025"
 sed -i "s/^clueweb_project: .*/clueweb_project: '$run_name'/" overall/LLM_deepspeed.yaml
 
-checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/${run_name}"
+checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/${run_name}/"
 
+# pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/tinyllama"
+# pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_clueweb_sbatch_pretrain_script_batchszie_64_deepspeed_3/HLLM-0.pth/"
 pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/"
-
 info_path="/data/user_data/lixiangl/HLLM_2/HLLM/information"
 data_path="/data/user_data/lixiangl/HLLM_2/HLLM/dataset"
 
 file_prefix="/data/user_data/lixiangl/HLLM_2/HLLM/code"
-### if I use baseline_pretrain = True here, it means that I am not using dataset_for_eval
 CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
     --loss nce \
     --epochs 5 \
-    --dataset microlens_clueweball_train_25_percent_model_filtered_threshold_p55 \
-    --train_batch_size 32 \
+    --dataset Pixel200K_5_percent \
+    --train_batch_size 16 \
     --MAX_TEXT_LENGTH 256 \
     --MAX_ITEM_LIST_LENGTH 10 \
     --checkpoint_dir $checkpoint_dir \
@@ -50,10 +50,10 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ${file_prefix}/main.py \
     --text_keys '[\"title\",\"tag\",\"description\"]' \
     --val_only False \
     --finetune_clueweb False \
-    --baseline_train False \
-    --clueweb_pretrain True \
     --gen_relevance_score False \
+    --baseline_train True \
+    --clueweb_pretrain False \
     --gradient_checkpointing True \
     --stage 3 \
-    # --dataset_for_eval microlens \
+    # --text_keys '[\"title\",\"tag\",\"description\"]' \
 

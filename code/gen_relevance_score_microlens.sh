@@ -22,7 +22,7 @@ conda activate hllm
 # checkpoint_dir="/data/user_data/lixiangl/HLLM_2/HLLM/model_clueweb_sbatch_pretrain_script_batchszie_64_deepspeed_3/HLLM-0.pth"
 
 # checkpoint_dir="/data/datasets/hf_cache/sample//TinyLlama-1.1B-intermediate-step-1431k-3T/"
-checkpoint_dir=/data/user_data/lixiangl/HLLM_2/HLLM/model_microlens_25_percent_benchmark_batchszie_64_deepspeed_3_March_19_2025/HLLM-0.pth
+checkpoint_dir=/data/user_data/lixiangl/HLLM_2/HLLM/model_microlens_50_percent_benchmark_batchszie_64_deepspeed_3_March_25_2025/HLLM-0.pth/
 
 # pretrain_dir="/data/user_data/lixiangl/HLLM_2/HLLM/tinyllama"
 pretrain_dir=/data/user_data/lixiangl/HLLM_2/HLLM/TinyLlama-1.1B-intermediate-step-1431k-3T/
@@ -33,7 +33,9 @@ data_path="/data/user_data/lixiangl/HLLM_2/HLLM/dataset"
 # data_path="best_model_epoch_13/sorted_pixelrec_only/dataset/"
 file_prefix="/data/user_data/lixiangl/HLLM_2/HLLM/code"
 
-relevance_score_file=/data/user_data/lixiangl/fastText/microlens_clueweb_save_best_epoch/sorted_microlens_only/score_ranking/microlens_relevance_score_25_percent_model.jsonl
+### if this is using multiple GPU, it seems that the writing of the jsonl file will have following bad example
+### {"interaction": [0, 0, 0, 0, 0, 0, 0, 0, 0, "clueweb22-e{"interaction": [0, 0, 0, 0, 0, 0, 0, 0, 0, "clueweb22-en0004-12-12780"], "target": "clueweb22-en0015-70-00191", "score": 0.30859375}
+relevance_score_file=/data/user_data/lixiangl/fastText/microlens_clueweb_save_best_epoch/sorted_microlens_only/score_ranking/microlens_relevance_score_50_percent_model.jsonl
 
 CUDA_VISIBLE_DEVICES=0 python3 ${file_prefix}/main.py \
     --config_file ${file_prefix}/overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
