@@ -9,13 +9,14 @@
 </div>
 
 ## 🔥 Update
-
+```
 pip install torch==2.1.0
 pip install -r requirements.txt
 
 sudo apt update
 sudo apt install git-lfs
 git clone https://huggingface.co/TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T
+```
 
 ## Installation
 
