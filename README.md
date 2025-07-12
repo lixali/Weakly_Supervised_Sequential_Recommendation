@@ -10,6 +10,8 @@
 
 ## 🔥 Update
 ```
+conda create -n myenv python=3.10
+python needs to be 3.10 version, otherwise latest python will not be able to install torch 2.1.0
 pip install torch==2.1.0
 pip install -r requirements.txt
 
