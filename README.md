@@ -1,4 +1,4 @@
-# Weakly Supervised Domain Adaptation for LLM-Based Recommendation Systems
+# Weakly Supervised Domain Adaptation for Sequential Recommendation Systems
 
 Large language models (LLMs) have shown strong performance across many language tasks, which has motivated growing interest in applying them to recommendation systems. However, directly transferring LLMs from their original web-scale pretraining corpora to recommendation tasks remains challenging. A major reason is the **domain gap** between open-domain web text and recommendation data, where user-item interaction patterns and item semantics are task-specific.
 
