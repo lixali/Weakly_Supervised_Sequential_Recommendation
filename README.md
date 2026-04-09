@@ -1,95 +1,110 @@
-# Weakly Supervised Domain Adaptation for Large Language Model Based Recommendation Systems
+# Weakly Supervised Domain Adaptation for LLM-Based Recommendation Systems
 
-Large Language Models (LLMs) have achieved impressive results across a wide range of tasks, prompting significant interest in their application to recommendation systems. However, the significant domain gap between the web-based pretraining corpora of LLMs and the recommendation data leads to suboptimal performance of LLM-based models in recommendation tasks. This issue is becoming worse when target recommendation datasets are limited in size and highly sparse, because they are insufficient to finetune the recommendation model to close the domain gap.
+Large language models (LLMs) have shown strong performance across many language tasks, which has motivated growing interest in applying them to recommendation systems. However, directly transferring LLMs from their original web-scale pretraining corpora to recommendation tasks remains challenging. A major reason is the **domain gap** between open-domain web text and recommendation data, where user-item interaction patterns and item semantics are task-specific.
 
-To overcome the limited size and data sparsity challenge, we propose a new framework to construct a weakly supervised training dataset for LLMs to better adapt from the web domain to recommendation tasks. First, we curate recommendation-related documents data from web corpora in the **Document Filtering** stage. Second, we pair the curated documents with outlink documents to construct the training dataset in the **Behavior Linking** stage. Finally, we **weakly supervised train** the recommendation model using the collected dataset followed by the standard finetuning using the target recommendation data.
+This challenge becomes even more severe when the target recommendation dataset is **small** and **highly sparse**. In such settings, standard finetuning alone is often insufficient for effectively adapting an LLM-based recommender to the target domain.
 
-In this work, we utilize the ClueWeb for dataset construction and leverage the state-of-the-art LLM-based recommendation model HLLM as our backbone. Our experimental results on PixelRec200K (5% users) and Microlens-100K (15% users) datasets (limited size and highly sparse) demonstrate the efficacy of our proposed framework in this scenario.
+To address this problem, we propose a **weakly supervised domain adaptation framework** for **LLM-based recommendation systems**. Our framework constructs a recommendation-oriented intermediate training dataset from web corpora and uses it to adapt the model before standard finetuning on the target recommendation data.
 
-## Quick highlights
-- Two LLMs: item-level text encoder and user-level sequence encoder.
-- Contrastive NCE training for ranking and retrieval.
-- Works with pre-trained LLM weights (e.g., TinyLlama, Baichuan2) and ID-based baselines (HSTU, SASRec).
-- Uses Deepspeed for memory-efficient and distributed training.
+The framework consists of three stages:
 
-## Installation
-Prerequisites:
-- Python 3.10 (recommended for compatibility with torch 2.1.0)
-- Git LFS if you plan to download large pre-trained weights
+1. **Document Filtering**  
+   We first identify recommendation-relevant documents from large-scale web corpora.
 
-Quick setup:
+2. **Behavior Linking**  
+   We then pair each curated document with its outlink document to form weakly supervised training pairs that mimic sequential or related-consumption behavior.
+
+3. **Weakly Supervised Training**  
+   The LLM-based recommendation model is trained on the constructed weakly supervised dataset, followed by standard finetuning on the target recommendation dataset.
+
+In this work, we use **ClueWeb** for dataset construction and adopt **HLLM**, a state-of-the-art LLM-based recommendation model, as the backbone. Experiments on **PixelRec200K (5% users)** and **Microlens-100K (15% users)** show that the proposed framework improves recommendation performance in limited-data and highly sparse settings.
+
+---
+
+## Overview
+
+This repository contains code for weakly supervised adaptation of LLM-based recommendation models.
+
+The core idea is to bridge the gap between:
+- **web-domain pretraining data**, where general-purpose LLMs are learned, and
+- **recommendation-domain interaction data**, where recommendation models are deployed.
+
+Instead of relying only on sparse target-domain user behavior, this project constructs a weakly supervised training signal from web data and uses it to better align LLM representations with recommendation tasks.
+
+---
+
+## Key Contributions
+
+- Proposes a **weakly supervised training pipeline** for adapting LLMs to recommendation systems.
+- Introduces a **Document Filtering** stage to curate recommendation-related web documents.
+- Introduces a **Behavior Linking** stage that uses document–outlink pairs as weak supervision.
+- Supports **LLM-based sequential recommendation backbones**, with **HLLM** as the primary model in this work.
+- Demonstrates effectiveness on **small-scale, highly sparse recommendation datasets**.
+
+---
+
+## Model Highlights
+
+- Uses separate modeling components for:
+  - **item-level textual representation learning**
+  - **user-level sequence modeling**
+- Supports **contrastive learning / NCE-style training** for retrieval and ranking.
+- Can leverage **pretrained LLM weights** for stronger initialization.
+- Supports **Deepspeed-based distributed training** for memory efficiency.
+
+---
+
+## Repository Structure
+
 ```bash
-conda create -n hllm python=3.10 -y
-conda activate hllm
-pip install -r requirements.txt
-sudo apt update && sudo apt install git-lfs  # optional
-```
+.
+├── code/                 # Core codebase for data processing, training, and evaluation
+├── dataset/              # Processed interaction data
+├── information/          # Item textual information
+├── overall/              # Global training configs
+├── HLLM/                 # HLLM model configs
+├── IDNet/                # ID-based baseline configs
+├── reproduce/            # Scripts for reproducing experiments
+├── design/               # Figures and diagrams
+└── README.md
 
-Key packages (examples):
-```
-pytorch==2.1.0
-deepspeed==0.14.2
-transformers==4.41.1
-lightning==2.4.0
-flash-attn==2.5.9post1
-```
-
-## Data layout
-Place processed interaction files under `dataset/` and item textual information under `information/` (these map to CLI `data_path` and `text_path` respectively):
 
 ```
-dataset/
-  ├─ amazon_books.csv
-  ├─ Pixel1M.csv
-  └─ Pixel8M.csv
 
-information/
-  ├─ amazon_books.csv
-  ├─ Pixel1M.csv
-  └─ Pixel8M.csv
-```
+## Experimental Setting
 
-See `code/` for utilities to process PixelRec and Books datasets.
+This project focuses on **limited-size** and **high-sparsity** recommendation scenarios, where direct finetuning of LLM-based recommendation models is often insufficient.
 
-## Training (example)
-Set distributed env vars (`MASTER_ADDR`, `MASTER_PORT`, `NPROC_PER_NODE`, etc.) for multi-node runs. Model and hyper-parameters are controlled by YAML configs in `overall/`, `HLLM/`, and `IDNet/`, and by CLI args in `code/REC/utils/argument_list.py`.
+The main experimental backbones and resources used in the paper include:
 
-Example (deepspeed):
-```bash
-python3 main.py \
-  --config_file overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
-  --loss nce \
-  --epochs 5 \
-  --dataset Pixel200K \
-  --train_batch_size 16 \
-  --MAX_TEXT_LENGTH 256 \
-  --MAX_ITEM_LIST_LENGTH 10 \
-  --checkpoint_dir ./saved_path \
-  --optim_args.learning_rate 1e-4 \
-  --item_pretrain_dir /path/to/item_llm \
-  --user_pretrain_dir /path/to/user_llm \
-  --text_path /absolute/path/to/information \
-  --text_keys '["title", "description"]'
-```
+- **ClueWeb** for weakly supervised dataset construction
+- **HLLM** as the LLM-based recommendation backbone
+- **PixelRec200K (5% users)**
+- **Microlens-100K (15% users)**
 
-Use `--gradient_checkpointing True` and Deepspeed stage 3 to save memory.
+---
 
-To run ID-based baselines, use `overall/ID.yaml` and the appropriate `IDNet/*.yaml` config.
+## Design Illustration
 
-## Evaluation / Inference
-To evaluate a checkpoint, run the same command as training with `--val_only True` and point `--checkpoint_dir` to saved weights.
+![Framework overview](design/proposed.png)
 
-Pretrained fine-tuned weights are referenced in the original project; ensure you comply with third-party licenses when using them.
-
-## Reproduce experiments
-Reproduction scripts are in the `reproduce/` folder and cover Pixel8M and Books setups used in the paper.
+---
 
 ## Acknowledgements
-Thanks to RecBole, PixelRec, HSTU and other repositories whose code and ideas influenced this work. This repository is released under Apache License 2.0; verify third-party weights/licenses before use.
 
-## Design
-The proposed framework diagram is available below and in `design/proposed.pdf`.
+This repository builds on ideas and code from prior work in recommendation systems and LLM-based modeling, including projects such as:
 
-<object data="design/proposed.pdf" type="application/pdf" width="100%" height="600">
-  <p>Unable to display PDF inline. Download the diagram: <a href="design/proposed.pdf">design/proposed.pdf</a></p>
-</object>
+- RecBole
+- PixelRec
+- HSTU
+- related open-source recommendation repositories
+
+We thank the corresponding authors and open-source contributors for their valuable efforts.
+
+---
+
+## License
+
+This repository is released under the **Apache License 2.0**.
+
+Please also verify the licenses of any third-party datasets, pretrained weights, and external resources before use.
