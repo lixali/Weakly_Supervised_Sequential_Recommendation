@@ -1,156 +1,95 @@
-# [HLLM: Enhancing Sequential Recommendations via Hierarchical Large Language Models for Item and User Modeling](https://arxiv.org/abs/2409.12740)
+# Weakly Supervised Domain Adaptation for Large Language Model Based Recommendation Systems
 
-<div align="center">
+Large Language Models (LLMs) have achieved impressive results across a wide range of tasks, prompting significant interest in their application to recommendation systems. However, the significant domain gap between the web-based pretraining corpora of LLMs and the recommendation data leads to suboptimal performance of LLM-based models in recommendation tasks. This issue is becoming worse when target recommendation datasets are limited in size and highly sparse, because they are insufficient to finetune the recommendation model to close the domain gap.
 
-[![arXiv](https://img.shields.io/badge/arXiv%20paper-2409.12740-da282a.svg)](https://arxiv.org/abs/2409.12740)
-[![huggingface weights](https://img.shields.io/badge/%F0%9F%A4%97%20Weights-ByteDance/HLLM-yellow)](https://huggingface.co/ByteDance/HLLM)
-[![Recommendation](https://img.shields.io/badge/Task-Recommendation-blue)]()
+To overcome the limited size and data sparsity challenge, we propose a new framework to construct a weakly supervised training dataset for LLMs to better adapt from the web domain to recommendation tasks. First, we curate recommendation-related documents data from web corpora in the **Document Filtering** stage. Second, we pair the curated documents with outlink documents to construct the training dataset in the **Behavior Linking** stage. Finally, we **weakly supervised train** the recommendation model using the collected dataset followed by the standard finetuning using the target recommendation data.
 
-</div>
+In this work, we utilize the ClueWeb for dataset construction and leverage the state-of-the-art LLM-based recommendation model HLLM as our backbone. Our experimental results on PixelRec200K (5% users) and Microlens-100K (15% users) datasets (limited size and highly sparse) demonstrate the efficacy of our proposed framework in this scenario.
 
-## 🔥 Update
-```
-conda create -n myenv python=3.10
-python needs to be 3.10 version, otherwise latest python will not be able to install torch 2.1.0
-pip install torch==2.1.0
-pip install -r requirements.txt
-
-sudo apt update
-sudo apt install git-lfs
-git clone https://huggingface.co/TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T
-```
+## Quick highlights
+- Two LLMs: item-level text encoder and user-level sequence encoder.
+- Contrastive NCE training for ranking and retrieval.
+- Works with pre-trained LLM weights (e.g., TinyLlama, Baichuan2) and ID-based baselines (HSTU, SASRec).
+- Uses Deepspeed for memory-efficient and distributed training.
 
 ## Installation
+Prerequisites:
+- Python 3.10 (recommended for compatibility with torch 2.1.0)
+- Git LFS if you plan to download large pre-trained weights
 
-1. Install packages via `pip3 install -r requirements.txt`. 
-Some basic packages are shown below :
+Quick setup:
+```bash
+conda create -n hllm python=3.10 -y
+conda activate hllm
+pip install -r requirements.txt
+sudo apt update && sudo apt install git-lfs  # optional
+```
+
+Key packages (examples):
 ```
 pytorch==2.1.0
 deepspeed==0.14.2
 transformers==4.41.1
 lightning==2.4.0
 flash-attn==2.5.9post1
-fbgemm-gpu==0.5.0 [optional for HSTU]
-sentencepiece==0.2.0 [optional for Baichuan2]
 ```
-2. Prepare `PixelRec` and `Amazon Book Reviews` Datasets:
-    1. Download `PixelRec` Interactions and Item Information from [PixelRec](https://github.com/westlake-repl/PixelRec) and put into the dataset and information folder.
-    2. Download `Amazon Book Reviews` [Interactions](http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/ratings_Books.csv) and [Item Information](http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Books.json.gz), process them by `process_books.py`, and put into the dataset and information folder. We also provide [Interactions](https://huggingface.co/ByteDance/HLLM/resolve/main/Interactions/amazon_books.csv) and [Item Information](https://huggingface.co/ByteDance/HLLM/resolve/main/ItemInformation/amazon_books.csv) of Books after processing.
-    3. Please note that Interactions and Item Information should be put into two folders like:
-        ```bash
-        ├── dataset # Store Interactions
-        │   ├── amazon_books.csv
-        │   ├── Pixel1M.csv
-        │   ├── Pixel200K.csv
-        │   └── Pixel8M.csv
-        └── information # Store Item Information
-            ├── amazon_books.csv
-            ├── Pixel1M.csv
-            ├── Pixel200K.csv
-            └── Pixel8M.csv
-        ``` 
-        Here dataset represents **data_path**, and infomation represents **text_path**.
-3. Prepare pre-trained LLM models, such as [TinyLlama](https://github.com/jzhang38/TinyLlama), [Baichuan2](https://huggingface.co/baichuan-inc/Baichuan2-7B-Base).
 
-## Training
-To train HLLM on PixelRec / Amazon Book Reviews, you can run the following command.
+## Data layout
+Place processed interaction files under `dataset/` and item textual information under `information/` (these map to CLI `data_path` and `text_path` respectively):
 
-> Set `master_addr`, `master_port`, `nproc_per_node`, `nnodes` and `node_rank` in environment variables for multinodes training.
+```
+dataset/
+  ├─ amazon_books.csv
+  ├─ Pixel1M.csv
+  └─ Pixel8M.csv
 
-> All hyper-parameters (except model's config) can be found in code/REC/utils/argument_list.py and passed through CLI. More model's hyper-parameters are in `IDNet/*` or `HLLM/*`. 
+information/
+  ├─ amazon_books.csv
+  ├─ Pixel1M.csv
+  └─ Pixel8M.csv
+```
 
-```python
-# Item and User LLM are initialized by specific pretrain_dir.
+See `code/` for utilities to process PixelRec and Books datasets.
+
+## Training (example)
+Set distributed env vars (`MASTER_ADDR`, `MASTER_PORT`, `NPROC_PER_NODE`, etc.) for multi-node runs. Model and hyper-parameters are controlled by YAML configs in `overall/`, `HLLM/`, and `IDNet/`, and by CLI args in `code/REC/utils/argument_list.py`.
+
+Example (deepspeed):
+```bash
 python3 main.py \
---config_file overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \ # We use deepspeed for training by default.
---loss nce \
---epochs 5 \
---dataset {Pixel200K / Pixel1M / Pixel8M / amazon_books} \
---train_batch_size 16 \
---MAX_TEXT_LENGTH 256 \
---MAX_ITEM_LIST_LENGTH 10 \
---checkpoint_dir saved_path \
---optim_args.learning_rate 1e-4 \
---item_pretrain_dir item_pretrain_dir \ # Set to LLM dir.
---user_pretrain_dir user_pretrain_dir \ # Set to LLM dir.
---text_path text_path \ # Use absolute path to text files.
---text_keys '[\"title\", \"tag\", \"description\"]' # Please remove tag in books dataset.
-```
-> You can use `--gradient_checkpointing True` and `--stage 3` with deepspeed to save memory.
-
-You can also train ID-based models by the following command.
-```python
-python3 main.py \
---config_file overall/ID.yaml IDNet/{hstu / sasrec / llama_id}.yaml \
---loss nce \
---epochs 201 \
---dataset {Pixel200K / Pixel1M / Pixel8M / amazon_books} \
---train_batch_size 64 \
---MAX_ITEM_LIST_LENGTH 10 \
---optim_args.learning_rate 1e-4
+  --config_file overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \
+  --loss nce \
+  --epochs 5 \
+  --dataset Pixel200K \
+  --train_batch_size 16 \
+  --MAX_TEXT_LENGTH 256 \
+  --MAX_ITEM_LIST_LENGTH 10 \
+  --checkpoint_dir ./saved_path \
+  --optim_args.learning_rate 1e-4 \
+  --item_pretrain_dir /path/to/item_llm \
+  --user_pretrain_dir /path/to/user_llm \
+  --text_path /absolute/path/to/information \
+  --text_keys '["title", "description"]'
 ```
 
+Use `--gradient_checkpointing True` and Deepspeed stage 3 to save memory.
 
-To reproduce our experiments on Pixel8M and Books you can run scripts in `reproduce` folder. You should be able to reproduce the following results.
-> For ID-based models, we follow the hyper-parameters from [PixelRec](https://github.com/westlake-repl/PixelRec) and [HSTU](https://github.com/facebookresearch/generative-recommenders/tree/main).
+To run ID-based baselines, use `overall/ID.yaml` and the appropriate `IDNet/*.yaml` config.
 
-| Method        | Dataset | Negatives | R@10       | R@50      | R@200     | N@10      | N@50      | N@200     |
-| ------------- | ------- |---------- | ---------- | --------- |---------- | --------- | --------- | --------- |
-| HSTU          | Pixel8M | 5632      | 4.83       | 10.30     | 18.28     | 2.75      | 3.94      | 5.13      |
-| SASRec        | Pixel8M | 5632      | 5.08       | 10.62     | 18.64     | 2.92      | 4.12      | 5.32      |
-| HLLM-1B       | Pixel8M | 5632      | **6.13**   | **12.48** | **21.18** | **3.54**  | **4.92**  | **6.22**  |
-| HSTU-large    | Books   | 512       | 5.00       | 11.29     | 20.13     | 2.78      | 4.14      | 5.47      |
-| SASRec        | Books   | 512       | 5.35       | 11.91     | 21.02     | 2.98      | 4.40      | 5.76      |
-| HLLM-1B       | Books   | 512       | **6.97**   | **14.61** | **24.78** | **3.98**  | **5.64**  | **7.16**  |
-| HSTU-large    | Books   | 28672     | 6.50       | 12.22     | 19.93     | 4.04      | 5.28      | 6.44      |
-| HLLM-1B       | Books   | 28672     | 9.28       | 17.34     | 27.22     | 5.65      | 7.41      | 8.89      |
-| HLLM-7B       | Books   | 28672     | **9.39**   | **17.65** | **27.59** | **5.69**  | **7.50**  | **8.99**  |
+## Evaluation / Inference
+To evaluate a checkpoint, run the same command as training with `--val_only True` and point `--checkpoint_dir` to saved weights.
 
-## Inference
-We provide fine-tuned HLLM models for evaluation, you can download from the following links or hugginface. Remember put the weights to `checkpoint_dir`.
+Pretrained fine-tuned weights are referenced in the original project; ensure you comply with third-party licenses when using them.
 
-| Model | Dataset | Weights |
-|:---|:---|:---|
-|HLLM-1B | Pixel8M | [HLLM-1B-Pixel8M](https://huggingface.co/ByteDance/HLLM/resolve/main/1B_Pixel8M/pytorch_model.bin)
-|HLLM-1B | Books | [HLLM-1B-Books-neg512](https://huggingface.co/ByteDance/HLLM/resolve/main/1B_books_neg512/pytorch_model.bin)
-|HLLM-1B | Books | [HLLM-1B-Books](https://huggingface.co/ByteDance/HLLM/resolve/main/1B_books/pytorch_model.bin)
-|HLLM-7B | Books | [HLLM-7B-Books](https://huggingface.co/ByteDance/HLLM/resolve/main/7B_books/pytorch_model.bin)
+## Reproduce experiments
+Reproduction scripts are in the `reproduce/` folder and cover Pixel8M and Books setups used in the paper.
 
-> Please ensure compliance with the respective licenses of [TinyLlama-1.1B](https://huggingface.co/datasets/choosealicense/licenses/blob/main/markdown/apache-2.0.md) and [Baichuan2-7B](https://huggingface.co/baichuan-inc/Baichuan2-7B-Base/blob/main/Community%20License%20for%20Baichuan%202%20Model.pdf) when using corresponding weights.
+## Acknowledgements
+Thanks to RecBole, PixelRec, HSTU and other repositories whose code and ideas influenced this work. This repository is released under Apache License 2.0; verify third-party weights/licenses before use.
 
-Then you can evaluate models by the following command (the same as training but val_only).
-```python
-python3 main.py \
---config_file overall/LLM_deepspeed.yaml HLLM/HLLM.yaml \ # We use deepspeed for training by default.
---loss nce \
---epochs 5 \
---dataset {Pixel200K / Pixel1M / Pixel8M / amazon_books} \
---train_batch_size 16 \
---MAX_TEXT_LENGTH 256 \
---MAX_ITEM_LIST_LENGTH 10 \
---checkpoint_dir saved_path \
---optim_args.learning_rate 1e-4 \
---item_pretrain_dir item_pretrain_dir \ # Set to LLM dir.
---user_pretrain_dir user_pretrain_dir \ # Set to LLM dir.
---text_path text_path \ # Use absolute path to text files.
---text_keys '[\"title\", \"tag\", \"description\"]' \ # Please remove tag in books dataset.
---val_only True # Add this for evaluation
-```
+## Design
+The proposed framework diagram is available below and in `design/proposed.pdf`.
 
-
-
-## Citation
-
-If our work has been of assistance to your work, feel free to give us a star ⭐ or cite us using :  
-
-```
-@article{HLLM,
-title={HLLM: Enhancing Sequential Recommendations via Hierarchical Large Language Models for Item and User Modeling},
-author={Junyi Chen and Lu Chi and Bingyue Peng and Zehuan Yuan},
-journal={arXiv preprint arXiv:2409.12740},
-year={2024}
-}
-```
-
-> Thanks to the excellent code repository [RecBole](https://github.com/RUCAIBox/RecBole), [VisRec](https://github.com/ialab-puc/VisualRecSys-Tutorial-IUI2021), [PixelRec](https://github.com/westlake-repl/PixelRec) and [HSTU](https://github.com/facebookresearch/generative-recommenders/tree/main) ! 
-> HLLM is released under the Apache License 2.0, some codes are modified from HSTU and PixelRec, which are released under the Apache License 2.0 and MIT License, respectively.
+<object data="design/proposed.pdf" type="application/pdf" width="100%" height="600">
+  <p>Unable to display PDF inline. Download the diagram: <a href="design/proposed.pdf">design/proposed.pdf</a></p>
+</object>
