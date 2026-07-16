@@ -19,10 +19,133 @@ cd "${SCRIPT_DIR}"
 mkdir -p outputs
 
 CONDA_ENV="${CONDA_ENV:-hllm}"
+TRAIN_VENV_DIR="${TRAIN_VENV_DIR:-../.venv_train}"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+GET_PIP_URL="${GET_PIP_URL:-https://bootstrap.pypa.io/get-pip.py}"
+BOOTSTRAP_TRAIN_ENV="${BOOTSTRAP_TRAIN_ENV:-True}"
+
+USING_CONDA=0
 if command -v conda >/dev/null 2>&1; then
     eval "$(conda shell.bash hook)"
-    conda activate "${CONDA_ENV}"
+    if conda env list | awk '{print $1}' | grep -qx "${CONDA_ENV}"; then
+        conda activate "${CONDA_ENV}"
+        PYTHON_BIN="$(command -v python3)"
+        USING_CONDA=1
+    else
+        echo "Conda env ${CONDA_ENV} not found; using a repo-local training virtualenv."
+    fi
 fi
+
+python_has_module() {
+    local python_bin="$1"
+    local module_name="$2"
+    "${python_bin}" - "${module_name}" <<'PY' >/dev/null 2>&1
+import importlib.util
+import sys
+
+raise SystemExit(0 if importlib.util.find_spec(sys.argv[1]) else 1)
+PY
+}
+
+ensure_pip() {
+    local python_bin="$1"
+    if "${python_bin}" -m pip --version >/dev/null 2>&1; then
+        return
+    fi
+
+    echo "pip is missing for ${python_bin}; bootstrapping pip locally."
+    local get_pip
+    get_pip="$(mktemp /tmp/get-pip.XXXXXX.py)"
+    "${python_bin}" - "${GET_PIP_URL}" "${get_pip}" <<'PY'
+import sys
+import urllib.request
+
+url, output_path = sys.argv[1], sys.argv[2]
+urllib.request.urlretrieve(url, output_path)
+PY
+    "${python_bin}" "${get_pip}"
+}
+
+ensure_train_python() {
+    if [[ "${USING_CONDA}" == "1" ]]; then
+        return
+    fi
+
+    if [[ ! -x "${TRAIN_VENV_DIR}/bin/python" ]]; then
+        echo "Creating repo-local training virtualenv at ${TRAIN_VENV_DIR}"
+        python3 -m venv --system-site-packages --without-pip "${TRAIN_VENV_DIR}"
+    fi
+
+    PYTHON_BIN="${TRAIN_VENV_DIR}/bin/python"
+    ensure_pip "${PYTHON_BIN}"
+}
+
+ensure_train_packages() {
+    if [[ "${BOOTSTRAP_TRAIN_ENV}" != "True" ]]; then
+        return
+    fi
+
+    ensure_pip "${PYTHON_BIN}"
+    if ! python_has_module "${PYTHON_BIN}" packaging; then
+        "${PYTHON_BIN}" -m pip install -U packaging
+    fi
+
+    local missing
+    missing="$("${PYTHON_BIN}" - <<'PY'
+import importlib.util
+from packaging.version import parse
+
+checks = [
+    ("colorlog", "colorlog"),
+    ("colorama", "colorama"),
+    ("yaml", "PyYAML"),
+    ("pandas", "pandas"),
+    ("torch_geometric", "torch_geometric"),
+    ("lightning", "lightning"),
+    ("deepspeed", "deepspeed"),
+    ("tensorboardX", "tensorboardX"),
+    ("sentencepiece", "sentencepiece"),
+]
+
+missing = []
+for module_name, package_name in checks:
+    if importlib.util.find_spec(module_name) is None:
+        missing.append(package_name)
+
+if importlib.util.find_spec("transformers") is None:
+    missing.append("transformers>=4.50.0")
+else:
+    import transformers
+    if parse(transformers.__version__) < parse("4.50.0"):
+        missing.append("transformers>=4.50.0")
+
+print(" ".join(missing))
+PY
+)"
+
+    if [[ -n "${missing}" ]]; then
+        echo "Installing missing Gemma training dependencies into $(${PYTHON_BIN} -c 'import sys; print(sys.prefix)'): ${missing}"
+        DS_BUILD_OPS=0 "${PYTHON_BIN}" -m pip install -U ${missing}
+    fi
+
+    "${PYTHON_BIN}" - <<'PY'
+import importlib.util
+import sys
+
+required = ["torch", "transformers", "colorlog", "pandas", "torch_geometric", "lightning", "deepspeed"]
+missing = [module for module in required if importlib.util.find_spec(module) is None]
+if missing:
+    raise SystemExit(
+        "Still missing required modules after bootstrap: "
+        + ", ".join(missing)
+        + "\nInstall PyTorch/CUDA for this machine first if torch is missing."
+    )
+PY
+}
+
+ensure_train_python
+ensure_train_packages
+export PATH="$(dirname "${PYTHON_BIN}"):${PATH}"
 
 make_gpu_ids() {
     local ids=""
@@ -70,6 +193,7 @@ LEARNING_RATE="${LEARNING_RATE:-1e-4}"
 STAGE="${STAGE:-3}"
 STRATEGY="${STRATEGY:-deepspeed}"
 PRECISION="${PRECISION:-bf16-mixed}"
+LOG_WANDB="${LOG_WANDB:-False}"
 
 VAL_ONLY="${VAL_ONLY:-False}"
 FINETUNE_CLUEWEB="${FINETUNE_CLUEWEB:-False}"
@@ -78,7 +202,7 @@ CLUEWEB_PRETRAIN="${CLUEWEB_PRETRAIN:-False}"
 GEN_RELEVANCE_SCORE="${GEN_RELEVANCE_SCORE:-False}"
 GRADIENT_CHECKPOINTING="${GRADIENT_CHECKPOINTING:-True}"
 
-python3 - <<'PY'
+"${PYTHON_BIN}" - <<'PY'
 import os
 from packaging.version import parse
 import transformers
@@ -116,6 +240,7 @@ ARGS=(
     --precision "${PRECISION}"
     --stage "${STAGE}"
     --clueweb_project "${RUN_NAME}"
+    --log_wandb "${LOG_WANDB}"
 )
 
 if [[ -n "${DATASET_FOR_EVAL}" ]]; then
@@ -126,5 +251,22 @@ echo "Running HLLM with Gemma 3 1B"
 echo "GPUs: ${GPU_IDS}  nproc_per_node=${nproc_per_node}  nnodes=${nnodes}  node_rank=${node_rank}"
 echo "Pretrained model: ${PRETRAIN_DIR}"
 echo "Checkpoint dir: ${CHECKPOINT_DIR}"
+echo "Python: ${PYTHON_BIN}"
 
-CUDA_VISIBLE_DEVICES="${GPU_IDS}" python3 main.py "${ARGS[@]}"
+TORCHRUN_ARGS=(
+    --node_rank="${node_rank}"
+    --nproc_per_node="${nproc_per_node}"
+    --nnodes="${nnodes}"
+)
+
+if [[ -n "${master_addr:-}" ]]; then
+    TORCHRUN_ARGS+=(--master_addr="${master_addr}")
+fi
+
+if [[ -n "${master_port:-}" ]]; then
+    TORCHRUN_ARGS+=(--master_port="${master_port}")
+else
+    TORCHRUN_ARGS+=(--master_port="$((RANDOM % (58999 - 50001 + 1) + 50001))")
+fi
+
+CUDA_VISIBLE_DEVICES="${GPU_IDS}" "${PYTHON_BIN}" -m torch.distributed.run "${TORCHRUN_ARGS[@]}" run.py "${ARGS[@]}"

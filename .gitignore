@@ -15,4 +15,5 @@ electronics/
 code/saved_100_percent_pixel200k_batchsize_16/
 code/saved_batchsize_16/
 .venv_hf/
+.venv_train/
 gemma-3-1b-pt/

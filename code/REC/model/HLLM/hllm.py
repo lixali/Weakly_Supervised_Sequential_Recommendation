@@ -23,10 +23,6 @@ from logging import getLogger
 
 from REC.utils.enum_type import InputType
 from REC.model.basemodel import BaseModel, all_gather
-from REC.model.HLLM.modeling_llama import LlamaForCausalLM
-from REC.model.HLLM.modeling_mistral import MistralForCausalLM
-from REC.model.HLLM.modeling_bert import BertModel
-from REC.model.HLLM.baichuan.modeling_baichuan import BaichuanForCausalLM
 
 
 class HLLM(BaseModel):
@@ -86,6 +82,8 @@ class HLLM(BaseModel):
 
         self.logger.info("xxxxx starting loading checkpoint")
         if isinstance(hf_config, transformers.LlamaConfig):
+            from REC.model.HLLM.modeling_llama import LlamaForCausalLM
+
             hf_config.use_ft_flash_attn = self.use_ft_flash_attn
             self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for llama')
             self.logger.info(f'Init {init} for llama')
@@ -96,6 +94,8 @@ class HLLM(BaseModel):
             model.supports_cu_input_lens = True
             return model
         elif isinstance(hf_config, transformers.MistralConfig):
+            from REC.model.HLLM.modeling_mistral import MistralForCausalLM
+
             hf_config.use_ft_flash_attn = self.use_ft_flash_attn
             self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for mistral')
             self.logger.info(f'Init {init} for mistral')
@@ -106,6 +106,8 @@ class HLLM(BaseModel):
             model.supports_cu_input_lens = True
             return model
         elif isinstance(hf_config, transformers.BertConfig):
+            from REC.model.HLLM.modeling_bert import BertModel
+
             hf_config.use_ft_flash_attn = self.use_ft_flash_attn
             self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for bert')
             self.logger.info(f'Init {init} for bert')
@@ -116,6 +118,8 @@ class HLLM(BaseModel):
             model.supports_cu_input_lens = True
             return model
         elif getattr(hf_config, "model_type", None) == "baichuan":
+            from REC.model.HLLM.baichuan.modeling_baichuan import BaichuanForCausalLM
+
             hf_config.use_ft_flash_attn = self.use_ft_flash_attn
             self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for baichuan')
             self.logger.info(f'Init {init} for baichuan')
