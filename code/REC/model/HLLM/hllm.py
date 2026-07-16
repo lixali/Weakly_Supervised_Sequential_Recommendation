@@ -90,37 +90,50 @@ class HLLM(BaseModel):
             self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for llama')
             self.logger.info(f'Init {init} for llama')
             if init:
-                return LlamaForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
+                model = LlamaForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
             else:
-                return LlamaForCausalLM(config=hf_config).cuda()
+                model = LlamaForCausalLM(config=hf_config).cuda()
+            model.supports_cu_input_lens = True
+            return model
         elif isinstance(hf_config, transformers.MistralConfig):
             hf_config.use_ft_flash_attn = self.use_ft_flash_attn
             self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for mistral')
             self.logger.info(f'Init {init} for mistral')
             if init:
-                return MistralForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
+                model = MistralForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
             else:
-                return MistralForCausalLM(config=hf_config).cuda()
+                model = MistralForCausalLM(config=hf_config).cuda()
+            model.supports_cu_input_lens = True
+            return model
         elif isinstance(hf_config, transformers.BertConfig):
             hf_config.use_ft_flash_attn = self.use_ft_flash_attn
             self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for bert')
             self.logger.info(f'Init {init} for bert')
             if init:
-                return BertModel.from_pretrained(pretrain_dir, config=hf_config)
+                model = BertModel.from_pretrained(pretrain_dir, config=hf_config)
             else:
-                return BertModel(config=hf_config).cuda()
+                model = BertModel(config=hf_config).cuda()
+            model.supports_cu_input_lens = True
+            return model
         elif getattr(hf_config, "model_type", None) == "baichuan":
             hf_config.use_ft_flash_attn = self.use_ft_flash_attn
             self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for baichuan')
             self.logger.info(f'Init {init} for baichuan')
             if init:
-                return BaichuanForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
+                model = BaichuanForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
             else:
-                return BaichuanForCausalLM(config=hf_config).cuda()
+                model = BaichuanForCausalLM(config=hf_config).cuda()
+            model.supports_cu_input_lens = True
+            return model
         else:
-            return AutoModelForCausalLM.from_pretrained(
-                self.local_dir, config=hf_config
-            )
+            self.logger.info(f'Using Hugging Face AutoModelForCausalLM for {hf_config.model_type}')
+            self.logger.info(f'Init {init} for {hf_config.model_type}')
+            if init:
+                model = AutoModelForCausalLM.from_pretrained(pretrain_dir, config=hf_config, trust_remote_code=True)
+            else:
+                model = AutoModelForCausalLM.from_config(hf_config, trust_remote_code=True).cuda()
+            model.supports_cu_input_lens = False
+            return model
 
     def nce_loss(self, cur_embs, target_pos, target_neg, user_attention_mask):
         with torch.no_grad():
@@ -153,6 +166,9 @@ class HLLM(BaseModel):
         emb_tokens,
         llm
     ):
+        if not getattr(llm, 'supports_cu_input_lens', False):
+            return self.forward_item_emb_hf(input_ids, position_ids, cu_input_lens, emb_token_n, emb_tokens, llm)
+
         inputs_embeds = llm.get_input_embeddings()(input_ids)
         emb_pos = cu_input_lens.cumsum(dim=0, dtype=torch.int32)
         if emb_token_n > 0:
@@ -176,6 +192,53 @@ class HLLM(BaseModel):
             ]
             out = torch.stack(padded_seqs)
             emb = out.sum(dim=1) / cu_input_lens.unsqueeze(1)
+
+        return emb
+
+    def forward_item_emb_hf(
+        self,
+        input_ids,
+        position_ids,
+        cu_input_lens,
+        emb_token_n,
+        emb_tokens,
+        llm
+    ):
+        batch_size = cu_input_lens.size(0)
+        max_len = cu_input_lens.max().item()
+        cu_seqlens = F.pad(cu_input_lens.cumsum(dim=0, dtype=torch.int64), (1, 0))
+        pad_token_id = getattr(llm.config, "pad_token_id", None)
+        if pad_token_id is None:
+            pad_token_id = 0
+
+        padded_input_ids = input_ids.new_full((batch_size, max_len), pad_token_id)
+        padded_position_ids = position_ids.new_zeros((batch_size, max_len))
+        attention_mask = input_ids.new_zeros((batch_size, max_len))
+
+        for i, (start, end) in enumerate(zip(cu_seqlens[:-1], cu_seqlens[1:])):
+            start = start.item()
+            end = end.item()
+            seq_len = end - start
+            padded_input_ids[i, :seq_len] = input_ids[start:end]
+            padded_position_ids[i, :seq_len] = position_ids[start:end]
+            attention_mask[i, :seq_len] = 1
+
+        inputs_embeds = llm.get_input_embeddings()(padded_input_ids)
+        if emb_token_n > 0:
+            emb_pos = cu_input_lens - 1
+            inputs_embeds[torch.arange(batch_size, device=input_ids.device), emb_pos] = emb_tokens.squeeze(0)
+
+        model_out = llm(
+            inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            position_ids=padded_position_ids,
+        )
+        hidden_states = model_out.hidden_states[-1]
+
+        if emb_token_n > 0:
+            emb = hidden_states[torch.arange(batch_size, device=input_ids.device), cu_input_lens - 1]
+        else:
+            emb = (hidden_states * attention_mask.unsqueeze(-1)).sum(dim=1) / cu_input_lens.unsqueeze(1)
 
         return emb
 

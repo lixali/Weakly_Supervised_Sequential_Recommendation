@@ -84,9 +84,11 @@ class LLMIDRec(BaseModel):
             else:
                 return BertModel(config=hf_config).bfloat16()
         else:
-            return AutoModelForCausalLM.from_pretrained(
-                self.local_dir, config=hf_config
-            )
+            self.logger.info(f'Using Hugging Face AutoModelForCausalLM for {hf_config.model_type}')
+            self.logger.info(f'Init {init} for {hf_config.model_type}')
+            if init:
+                return AutoModelForCausalLM.from_pretrained(pretrain_dir, config=hf_config, trust_remote_code=True)
+            return AutoModelForCausalLM.from_config(hf_config, trust_remote_code=True).bfloat16()
 
     def forward(self, interaction):
         items, neg_items, masked_index = interaction  # [batch, 2, seq_len]    #[batch, max_seq_len-1]
