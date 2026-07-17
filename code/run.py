@@ -192,6 +192,8 @@ if __name__ == '__main__':
     try:
         run_loop(local_rank=local_rank, config_file=config_file, extra_args=extra_args)
     except Exception:
-        import traceback, pdb
-        traceback.print_exc()
-        pdb.post_mortem()
+        if os.environ.get("POST_MORTEM_DEBUG", "False").lower() in {"1", "true", "yes"}:
+            import traceback, pdb
+            traceback.print_exc()
+            pdb.post_mortem()
+        raise

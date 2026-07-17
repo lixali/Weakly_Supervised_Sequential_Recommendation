@@ -14,6 +14,10 @@
 
 set -euo pipefail
 
+if [[ -z "${PYTORCH_ALLOC_CONF:-}" && -z "${PYTORCH_CUDA_ALLOC_CONF:-}" ]]; then
+    export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+fi
+
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 cd "${SCRIPT_DIR}"
 mkdir -p outputs

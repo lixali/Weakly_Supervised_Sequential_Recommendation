@@ -77,7 +77,7 @@ class HLLM(BaseModel):
         self.logger.info(f"hf_config: {hf_config}")
         hf_config.gradient_checkpointing = self.gradient_checkpointing
         hf_config.use_cache = False
-        hf_config.output_hidden_states = True
+        hf_config.output_hidden_states = False
         hf_config.return_dict = True
 
         self.logger.info("xxxxx starting loading checkpoint")
@@ -91,8 +91,7 @@ class HLLM(BaseModel):
                 model = LlamaForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
             else:
                 model = LlamaForCausalLM(config=hf_config).cuda()
-            model.supports_cu_input_lens = True
-            return model
+            return self._finalize_llm(model, supports_cu_input_lens=True)
         elif isinstance(hf_config, transformers.MistralConfig):
             from REC.model.HLLM.modeling_mistral import MistralForCausalLM
 
@@ -103,8 +102,7 @@ class HLLM(BaseModel):
                 model = MistralForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
             else:
                 model = MistralForCausalLM(config=hf_config).cuda()
-            model.supports_cu_input_lens = True
-            return model
+            return self._finalize_llm(model, supports_cu_input_lens=True)
         elif isinstance(hf_config, transformers.BertConfig):
             from REC.model.HLLM.modeling_bert import BertModel
 
@@ -115,8 +113,7 @@ class HLLM(BaseModel):
                 model = BertModel.from_pretrained(pretrain_dir, config=hf_config)
             else:
                 model = BertModel(config=hf_config).cuda()
-            model.supports_cu_input_lens = True
-            return model
+            return self._finalize_llm(model, supports_cu_input_lens=True)
         elif getattr(hf_config, "model_type", None) == "baichuan":
             from REC.model.HLLM.baichuan.modeling_baichuan import BaichuanForCausalLM
 
@@ -127,8 +124,7 @@ class HLLM(BaseModel):
                 model = BaichuanForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
             else:
                 model = BaichuanForCausalLM(config=hf_config).cuda()
-            model.supports_cu_input_lens = True
-            return model
+            return self._finalize_llm(model, supports_cu_input_lens=True)
         else:
             self.logger.info(f'Using Hugging Face AutoModelForCausalLM for {hf_config.model_type}')
             self.logger.info(f'Init {init} for {hf_config.model_type}')
@@ -136,8 +132,27 @@ class HLLM(BaseModel):
                 model = AutoModelForCausalLM.from_pretrained(pretrain_dir, config=hf_config, trust_remote_code=True)
             else:
                 model = AutoModelForCausalLM.from_config(hf_config, trust_remote_code=True).cuda()
-            model.supports_cu_input_lens = False
-            return model
+            return self._finalize_llm(model, supports_cu_input_lens=False)
+
+    def _finalize_llm(self, model, supports_cu_input_lens):
+        model.supports_cu_input_lens = supports_cu_input_lens
+        if self.gradient_checkpointing:
+            if getattr(model, "supports_gradient_checkpointing", False):
+                model.gradient_checkpointing_enable()
+                self.logger.info(f"Enabled gradient checkpointing for {model.__class__.__name__}")
+            else:
+                self.logger.warning(f"{model.__class__.__name__} does not support gradient checkpointing")
+        return model
+
+    @staticmethod
+    def _forward_backbone(llm, **kwargs):
+        """Return final hidden states without allocating unused vocabulary logits."""
+        model_out = llm.base_model(
+            output_hidden_states=False,
+            return_dict=True,
+            **kwargs,
+        )
+        return model_out.last_hidden_state
 
     def nce_loss(self, cur_embs, target_pos, target_neg, user_attention_mask):
         with torch.no_grad():
@@ -177,8 +192,12 @@ class HLLM(BaseModel):
         emb_pos = cu_input_lens.cumsum(dim=0, dtype=torch.int32)
         if emb_token_n > 0:
             inputs_embeds[emb_pos - 1] = emb_tokens
-        model_out = llm(inputs_embeds=inputs_embeds.unsqueeze(0), cu_input_lens=cu_input_lens, position_ids=position_ids.unsqueeze(0))
-        model_out = model_out.hidden_states[-1].squeeze(0)
+        model_out = self._forward_backbone(
+            llm,
+            inputs_embeds=inputs_embeds.unsqueeze(0),
+            cu_input_lens=cu_input_lens,
+            position_ids=position_ids.unsqueeze(0),
+        ).squeeze(0)
 
         if emb_token_n > 0:
             emb = model_out[emb_pos - 1]
@@ -232,12 +251,12 @@ class HLLM(BaseModel):
             emb_pos = cu_input_lens - 1
             inputs_embeds[torch.arange(batch_size, device=input_ids.device), emb_pos] = emb_tokens.squeeze(0)
 
-        model_out = llm(
+        hidden_states = self._forward_backbone(
+            llm,
             inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
             position_ids=padded_position_ids,
         )
-        hidden_states = model_out.hidden_states[-1]
 
         if emb_token_n > 0:
             emb = hidden_states[torch.arange(batch_size, device=input_ids.device), cu_input_lens - 1]
@@ -264,7 +283,11 @@ class HLLM(BaseModel):
         target_pos_embs = pos_embedding[:, 1:]
         target_neg_embs = neg_embedding
 
-        user_embedding = self.user_llm(inputs_embeds=pos_embedding[:, :-1], attention_mask=user_attention_mask).hidden_states[-1]
+        user_embedding = self._forward_backbone(
+            self.user_llm,
+            inputs_embeds=pos_embedding[:, :-1],
+            attention_mask=user_attention_mask,
+        )
 
         model_out = {}
         logits, labels = self.nce_loss(user_embedding, target_pos_embs, target_neg_embs, user_attention_mask)
@@ -283,7 +306,11 @@ class HLLM(BaseModel):
 
         pos_embedding = item_feature[item_seq]
 
-        user_embedding = self.user_llm(inputs_embeds=pos_embedding, attention_mask=attention_mask).hidden_states[-1]
+        user_embedding = self._forward_backbone(
+            self.user_llm,
+            inputs_embeds=pos_embedding,
+            attention_mask=attention_mask,
+        )
         seq_output = user_embedding[:, -1]
         seq_output = seq_output / seq_output.norm(dim=-1, keepdim=True)
         item_feature = item_feature / item_feature.norm(dim=-1, keepdim=True)
