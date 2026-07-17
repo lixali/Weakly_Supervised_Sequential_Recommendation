@@ -155,11 +155,50 @@ make_gpu_ids() {
     echo "${ids}"
 }
 
-NUM_GPUS="${NUM_GPUS:-4}"
-GPU_IDS="${GPU_IDS:-$(make_gpu_ids)}"
+detect_num_gpus() {
+    "${PYTHON_BIN}" - <<'PY'
+import torch
+
+print(torch.cuda.device_count())
+PY
+}
+
+count_gpu_ids() {
+    local gpu_ids="$1"
+    local -a gpu_id_list
+    IFS=',' read -r -a gpu_id_list <<< "${gpu_ids}"
+    echo "${#gpu_id_list[@]}"
+}
+
+DETECTED_NUM_GPUS="$(detect_num_gpus)"
+if [[ -n "${GPU_IDS:-}" ]]; then
+    DEFAULT_GPU_IDS="${GPU_IDS}"
+    DEFAULT_NUM_GPUS="$(count_gpu_ids "${DEFAULT_GPU_IDS}")"
+elif [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+    DEFAULT_GPU_IDS="${CUDA_VISIBLE_DEVICES}"
+    DEFAULT_NUM_GPUS="$(count_gpu_ids "${DEFAULT_GPU_IDS}")"
+else
+    DEFAULT_NUM_GPUS="${DETECTED_NUM_GPUS}"
+    NUM_GPUS="${NUM_GPUS:-${DEFAULT_NUM_GPUS}}"
+    DEFAULT_GPU_IDS="$(make_gpu_ids)"
+fi
+
+NUM_GPUS="${NUM_GPUS:-${DEFAULT_NUM_GPUS}}"
+GPU_IDS="${GPU_IDS:-${DEFAULT_GPU_IDS}}"
 NNODES="${NNODES:-1}"
 NODE_RANK="${NODE_RANK:-0}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-${NUM_GPUS}}"
+
+SELECTED_GPU_COUNT="$(CUDA_VISIBLE_DEVICES="${GPU_IDS}" detect_num_gpus)"
+if ! [[ "${NPROC_PER_NODE}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: NPROC_PER_NODE must be a positive integer; got '${NPROC_PER_NODE}'." >&2
+    exit 1
+fi
+if (( SELECTED_GPU_COUNT < NPROC_PER_NODE )); then
+    echo "Error: nproc_per_node=${NPROC_PER_NODE}, but only ${SELECTED_GPU_COUNT} GPU(s) are visible with CUDA_VISIBLE_DEVICES=${GPU_IDS}." >&2
+    echo "Use a matching allocation, or set NUM_GPUS, GPU_IDS, and NPROC_PER_NODE to the GPUs available on this machine." >&2
+    exit 1
+fi
 
 export nproc_per_node="${NPROC_PER_NODE}"
 export nnodes="${NNODES}"
@@ -183,7 +222,7 @@ DATA_PATH="${DATA_PATH:-../dataset}"
 
 DATASET="${DATASET:-Pixel200K_5_percent}"
 DATASET_FOR_EVAL="${DATASET_FOR_EVAL:-}"
-TEXT_KEYS=${TEXT_KEYS:-'[\"title\",\"tag\",\"description\"]'}
+TEXT_KEYS=${TEXT_KEYS:-'["title","tag","description"]'}
 
 EPOCHS="${EPOCHS:-5}"
 TRAIN_BATCH_SIZE="${TRAIN_BATCH_SIZE:-16}"
