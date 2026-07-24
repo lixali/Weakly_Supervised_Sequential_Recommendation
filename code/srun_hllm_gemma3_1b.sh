@@ -14,6 +14,82 @@
 
 set -euo pipefail
 
+# ============================================================
+# 1. Use tmux on regular Ubuntu/AutoDL.
+# 2. Do not use tmux in Google Colab or inside a Slurm job.
+# 3. Print output to the terminal and save it to a timestamped log.
+# ============================================================
+
+IS_COLAB=0
+if [[ -n "${COLAB_RELEASE_TAG:-}" || -n "${COLAB_GPU:-}" || -d "/content" ]]; then
+    IS_COLAB=1
+fi
+
+# Start this script again inside tmux on Ubuntu/AutoDL.
+if (( IS_COLAB == 0 )) \
+    && [[ -z "${SLURM_JOB_ID:-}" ]] \
+    && [[ -z "${TMUX:-}" ]] \
+    && [[ "${HLLM_TMUX_CHILD:-0}" != "1" ]]; then
+
+    if ! command -v tmux >/dev/null 2>&1; then
+        echo "tmux is not installed. Install it with:"
+        echo "apt-get update && apt-get install -y tmux"
+        exit 1
+    fi
+
+    CURRENT_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+    CURRENT_SCRIPT_DIR="$(dirname "${CURRENT_SCRIPT}")"
+    TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-hllm_gemma3_1b}"
+
+    # Do not create a second training session with the same name.
+    if tmux has-session -t "${TMUX_SESSION_NAME}" 2>/dev/null; then
+        echo "tmux session '${TMUX_SESSION_NAME}' already exists."
+        exec tmux attach-session -t "${TMUX_SESSION_NAME}"
+    fi
+
+    TMUX_LAUNCHER="$(mktemp "/tmp/${TMUX_SESSION_NAME}.XXXXXX.sh")"
+
+    {
+        echo '#!/bin/bash'
+        echo 'set +e'
+
+        # Preserve variables such as TRAIN_BATCH_SIZE and PRECISION.
+        export -p
+
+        printf 'export HLLM_TMUX_CHILD=1\n'
+        printf 'cd %q\n' "${CURRENT_SCRIPT_DIR}"
+        printf 'bash %q\n' "${CURRENT_SCRIPT}"
+        printf 'exit_code=$?\n'
+        printf 'echo "Training finished with exit code ${exit_code}"\n'
+        printf 'rm -f -- "$0"\n'
+        printf 'exec bash\n'
+    } > "${TMUX_LAUNCHER}"
+
+    chmod 700 "${TMUX_LAUNCHER}"
+
+    tmux new-session \
+        -d \
+        -s "${TMUX_SESSION_NAME}" \
+        "${TMUX_LAUNCHER}"
+
+    echo "Started tmux session: ${TMUX_SESSION_NAME}"
+
+    if [[ -t 0 && -t 1 ]]; then
+        exec tmux attach-session -t "${TMUX_SESSION_NAME}"
+    else
+        echo "Attach later with:"
+        echo "tmux attach -t ${TMUX_SESSION_NAME}"
+        exit 0
+    fi
+fi
+
+# ============================================================
+# The code below runs:
+# - directly in Colab;
+# - inside tmux on Ubuntu/AutoDL;
+# - directly inside a Slurm job.
+# ============================================================
+
 if [[ -z "${PYTORCH_ALLOC_CONF:-}" && -z "${PYTORCH_CUDA_ALLOC_CONF:-}" ]]; then
     export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 fi
@@ -21,6 +97,17 @@ fi
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 cd "${SCRIPT_DIR}"
 mkdir -p outputs
+
+# Example:
+# outputs/hllm_gemma3_1b_20260719_183045.log
+RUN_TIMESTAMP="${RUN_TIMESTAMP:-$(date '+%Y%m%d_%H%M%S')}"
+LOG_FILE="${LOG_FILE:-outputs/hllm_gemma3_1b_${RUN_TIMESTAMP}.log}"
+
+# Print stdout and stderr to the terminal and save both to the log.
+exec > >(tee -a "${LOG_FILE}") 2>&1
+
+echo "Log file: ${LOG_FILE}"
+
 
 CONDA_ENV="${CONDA_ENV:-hllm}"
 TRAIN_VENV_DIR="${TRAIN_VENV_DIR:-../.venv_train}"
