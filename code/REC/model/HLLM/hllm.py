@@ -147,20 +147,11 @@ class HLLM(BaseModel):
     @staticmethod
     def _forward_backbone(llm, **kwargs):
         """Return final hidden states without allocating unused vocabulary logits."""
-
-        if getattr(llm.config, "model_type", None) == "gemma3_text":
-            # Gemma3ForCausalLM stores its text backbone in llm.model.
-            backbone = llm.model
-        else:
-            # Preserve the original behavior for Llama, Mistral, BERT, Baichuan, etc.
-            backbone = llm.base_model
-
-        model_out = backbone(
+        model_out = llm.base_model(
             output_hidden_states=False,
             return_dict=True,
             **kwargs,
         )
-
         return model_out.last_hidden_state
 
     def nce_loss(self, cur_embs, target_pos, target_neg, user_attention_mask):

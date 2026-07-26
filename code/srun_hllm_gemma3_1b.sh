@@ -108,6 +108,53 @@ exec > >(tee -a "${LOG_FILE}") 2>&1
 
 echo "Log file: ${LOG_FILE}"
 
+log_source_version() {
+    local hllm_file="REC/model/HLLM/hllm.py"
+    local reference_commit="d129b808afa58cfc854106858954dd567edaa721"
+    local source_hash
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        source_hash="$(sha256sum "${hllm_file}" | awk '{print $1}')"
+    else
+        source_hash="unavailable"
+    fi
+
+    if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        local repo_commit
+        local hllm_commit
+        local hllm_blob
+        local hllm_state
+
+        repo_commit="$(git rev-parse HEAD)"
+        hllm_commit="$(git log -1 --format=%H -- "${hllm_file}")"
+        hllm_blob="$(git hash-object "${hllm_file}")"
+        if git diff --quiet HEAD -- "${hllm_file}"; then
+            hllm_state="clean"
+        else
+            hllm_state="modified"
+        fi
+
+        echo "Repository commit: ${repo_commit}"
+        echo "HLLM source commit: ${hllm_commit}"
+        echo "HLLM source state: ${hllm_state}"
+        if [[ "${hllm_blob}" == "$(git rev-parse "${reference_commit}:code/${hllm_file}" 2>/dev/null || true)" ]]; then
+            echo "HLLM source content matches commit: ${reference_commit}"
+        else
+            echo "HLLM source content matches commit: no match for ${reference_commit}"
+        fi
+    else
+        echo "Repository commit: unavailable (not a Git checkout)"
+        echo "HLLM source commit: unavailable"
+        echo "HLLM source state: unknown"
+        echo "HLLM source content matches commit: unavailable"
+    fi
+
+    echo "HLLM source file: ${hllm_file}"
+    echo "HLLM source SHA256: ${source_hash}"
+}
+
+log_source_version
+
 
 CONDA_ENV="${CONDA_ENV:-hllm}"
 TRAIN_VENV_DIR="${TRAIN_VENV_DIR:-../.venv_train}"
