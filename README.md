@@ -86,7 +86,7 @@ The main experimental backbones and resources used in the paper include:
 
 ## Design Illustration
 
-![Framework overview](design/proposed.png)
+![Framework overview](design/proposed_d.png)
 
 ---
 
