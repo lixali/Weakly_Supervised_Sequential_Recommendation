@@ -231,6 +231,7 @@ ensure_train_packages() {
     local missing
     missing="$("${PYTHON_BIN}" - <<'PY'
 import importlib.util
+from importlib.metadata import version
 from packaging.version import parse
 
 checks = [
@@ -240,7 +241,7 @@ checks = [
     ("pandas", "pandas"),
     ("torch_geometric", "torch_geometric"),
     ("lightning", "lightning"),
-    ("deepspeed", "deepspeed"),
+    ("deepspeed", "deepspeed==0.19.2"),
     ("tensorboardX", "tensorboardX"),
     ("sentencepiece", "sentencepiece"),
 ]
@@ -249,6 +250,9 @@ missing = []
 for module_name, package_name in checks:
     if importlib.util.find_spec(module_name) is None:
         missing.append(package_name)
+
+if importlib.util.find_spec("deepspeed") is not None and version("deepspeed") != "0.19.2":
+    missing.append("deepspeed==0.19.2")
 
 if importlib.util.find_spec("transformers") is None:
     missing.append("transformers>=4.50.0")
@@ -269,6 +273,7 @@ PY
     "${PYTHON_BIN}" - <<'PY'
 import importlib.util
 import sys
+from importlib.metadata import version
 
 required = ["torch", "transformers", "colorlog", "pandas", "torch_geometric", "lightning", "deepspeed"]
 missing = [module for module in required if importlib.util.find_spec(module) is None]
@@ -278,6 +283,10 @@ if missing:
         + ", ".join(missing)
         + "\nInstall PyTorch/CUDA for this machine first if torch is missing."
     )
+installed_deepspeed = version("deepspeed")
+if installed_deepspeed != "0.19.2":
+    raise SystemExit(f"DeepSpeed version mismatch: required 0.19.2, found {installed_deepspeed}.")
+print(f"DeepSpeed version: {installed_deepspeed}")
 PY
 }
 
