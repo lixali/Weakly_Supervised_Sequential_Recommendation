@@ -584,6 +584,10 @@ class LlamaAttention(nn.Module):
         output_attentions: bool = False,
         use_cache: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        if cu_input_lens is not None and not self.use_ft_flash_attn:
+            raise ValueError(
+                "Packed cu_input_lens requires FlashAttention; use padded sequences instead."
+            )
         bsz, q_len, _ = hidden_states.size()
 
         if self.config.pretraining_tp > 1:
@@ -648,7 +652,20 @@ class LlamaAttention(nn.Module):
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
 
-        if not self.use_ft_flash_attn:
+        if not self.use_ft_flash_attn and not output_attentions:
+            # LlamaModel already combines the causal and padding masks. SDPA
+            # can use PyTorch's fused kernels without the flash_attn package.
+            attn_output = F.scaled_dot_product_attention(
+                query_states,
+                key_states,
+                value_states,
+                attn_mask=attention_mask,
+                dropout_p=0.0,
+                is_causal=False,
+            )
+            attn_output = attn_output.transpose(1, 2).contiguous()
+            attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
+        elif not self.use_ft_flash_attn:
             attn_weights = torch.matmul(
                 query_states, key_states.transpose(2, 3)
             ) / math.sqrt(self.head_dim)
@@ -995,6 +1012,14 @@ class LlamaModel(LlamaPreTrainedModel):
         return_dict = (
             return_dict if return_dict is not None else self.config.use_return_dict
         )
+
+        if cu_input_lens is not None and not all(
+            layer.self_attn.use_ft_flash_attn for layer in self.layers
+        ):
+            raise ValueError(
+                "Packed cu_input_lens requires FlashAttention in every Llama layer. "
+                "Use separate padded sequences with an attention_mask instead."
+            )
 
         # retrieve input_ids and inputs_embeds
         if input_ids is not None and inputs_embeds is not None:

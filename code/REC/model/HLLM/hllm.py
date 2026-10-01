@@ -135,6 +135,21 @@ class HLLM(BaseModel):
             return self._finalize_llm(model, supports_cu_input_lens=False)
 
     def _finalize_llm(self, model, supports_cu_input_lens):
+        if supports_cu_input_lens:
+            # Only the FlashAttention path understands boundaries between
+            # packed item texts. A disabled/missing backend needs padded items.
+            attention_layers = [
+                module for module in model.modules()
+                if hasattr(module, "use_ft_flash_attn")
+            ]
+            supports_cu_input_lens = bool(attention_layers) and all(
+                module.use_ft_flash_attn for module in attention_layers
+            )
+            if not supports_cu_input_lens:
+                self.logger.warning(
+                    f"Packed FlashAttention is unavailable for {model.__class__.__name__}; "
+                    "encoding item texts as separate padded sequences."
+                )
         model.supports_cu_input_lens = supports_cu_input_lens
         if self.gradient_checkpointing:
             if getattr(model, "supports_gradient_checkpointing", False):
