@@ -39,11 +39,21 @@ cd "${SCRIPT_DIR}"
 mkdir -p outputs
 
 CONDA_ENV="${CONDA_ENV:-hllm}"
-if command -v conda >/dev/null 2>&1; then
-    eval "$(conda shell.bash hook)"
-    conda activate "${CONDA_ENV}"
+TRAIN_VENV_DIR="${TRAIN_VENV_DIR:-${HLLM_ROOT}/.venv_train}"
+# Reuse the environment prepared by the Gemma launcher on Colab. An explicit
+# PYTHON_BIN takes precedence over automatic Conda or virtualenv selection.
+if [[ -z "${PYTHON_BIN:-}" ]]; then
+    if command -v conda >/dev/null 2>&1; then
+        eval "$(conda shell.bash hook)"
+        if conda env list | awk '{print $1}' | grep -qx "${CONDA_ENV}"; then
+            conda activate "${CONDA_ENV}"
+            PYTHON_BIN="$(command -v python3)"
+        fi
+    fi
+    if [[ -z "${PYTHON_BIN:-}" && -x "${TRAIN_VENV_DIR}/bin/python" ]]; then
+        PYTHON_BIN="${TRAIN_VENV_DIR}/bin/python"
+    fi
 fi
-
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 # Full dataset by default. To run a reduced-density version, submit with, e.g.:
@@ -111,5 +121,16 @@ echo "Interaction file: ${interaction_file}"
 echo "Information file: ${information_file}"
 echo "Pretrained model: ${PRETRAIN_DIR}"
 echo "Checkpoint directory: ${CHECKPOINT_DIR}"
+echo "Python: ${PYTHON_BIN}"
 
-CUDA_VISIBLE_DEVICES="${GPU_IDS}" "${HLLM_ROOT}/TORCHRUN" run.py "${ARGS[@]}"
+TORCHRUN_ARGS=(
+    --node_rank="${NODE_RANK:-${node_rank:-0}}"
+    --nproc_per_node="${NPROC_PER_NODE}"
+    --nnodes="${NNODES:-${nnodes:-1}}"
+    --master_addr="${MASTER_ADDR:-${master_addr:-127.0.0.1}}"
+    --master_port="${MASTER_PORT:-${master_port:-$((RANDOM % (58999 - 50001 + 1) + 50001))}}"
+)
+
+# A system torchrun executable can use a different Python than the selected
+# training environment. Invoke its module directly and preserve failure status.
+CUDA_VISIBLE_DEVICES="${GPU_IDS}" exec "${PYTHON_BIN}" -m torch.distributed.run "${TORCHRUN_ARGS[@]}" run.py "${ARGS[@]}"
