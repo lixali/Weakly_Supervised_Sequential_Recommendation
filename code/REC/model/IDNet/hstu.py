@@ -28,7 +28,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from logging import getLogger
-import fbgemm_gpu
 
 from REC.utils.enum_type import InputType
 from REC.model.basemodel import BaseModel, l2_norm, all_gather

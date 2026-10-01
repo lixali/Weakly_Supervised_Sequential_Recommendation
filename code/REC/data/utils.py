@@ -81,7 +81,9 @@ def bulid_dataloader(config, dataload):
     valid_sampler = NonConsecutiveSequentialDistributedSampler(valid_data)
     test_sampler = NonConsecutiveSequentialDistributedSampler(test_data)
 
-    num_workers = 11
+    num_workers = int(config.get('num_workers', 11))
+    if num_workers < 0:
+        raise ValueError('num_workers must be non-negative')
     rank = torch.distributed.get_rank()
     seed = torch.initial_seed()
 

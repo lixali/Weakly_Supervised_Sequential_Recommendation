@@ -61,7 +61,7 @@ class LLMIDRec(BaseModel):
         self.logger.info(f"hf_config: {hf_config}")
         hf_config.gradient_checkpointing = self.gradient_checkpointing
         hf_config.use_cache = False
-        hf_config.output_hidden_states = True
+        hf_config.output_hidden_states = False
         hf_config.return_dict = True
 
         self.logger.info("xxxxx starting loading checkpoint")
@@ -72,9 +72,9 @@ class LLMIDRec(BaseModel):
             self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for llama')
             self.logger.info(f'Init {init} for llama')
             if init:
-                return LlamaForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
+                model = LlamaForCausalLM.from_pretrained(pretrain_dir, config=hf_config)
             else:
-                return LlamaForCausalLM(config=hf_config).bfloat16()
+                model = LlamaForCausalLM(config=hf_config).bfloat16()
         elif isinstance(hf_config, transformers.BertConfig):
             from REC.model.HLLM.modeling_bert import BertModel
 
@@ -82,15 +82,32 @@ class LLMIDRec(BaseModel):
             self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for bert')
             self.logger.info(f'Init {init} for bert')
             if init:
-                return BertModel.from_pretrained(pretrain_dir, config=hf_config)
+                model = BertModel.from_pretrained(pretrain_dir, config=hf_config)
             else:
-                return BertModel(config=hf_config).bfloat16()
+                model = BertModel(config=hf_config).bfloat16()
         else:
             self.logger.info(f'Using Hugging Face AutoModelForCausalLM for {hf_config.model_type}')
             self.logger.info(f'Init {init} for {hf_config.model_type}')
             if init:
-                return AutoModelForCausalLM.from_pretrained(pretrain_dir, config=hf_config, trust_remote_code=True)
-            return AutoModelForCausalLM.from_config(hf_config, trust_remote_code=True).bfloat16()
+                model = AutoModelForCausalLM.from_pretrained(pretrain_dir, config=hf_config, trust_remote_code=True)
+            else:
+                model = AutoModelForCausalLM.from_config(hf_config, trust_remote_code=True).bfloat16()
+
+        if self.gradient_checkpointing and getattr(model, 'supports_gradient_checkpointing', False):
+            model.gradient_checkpointing_enable()
+            self.logger.info(f"Enabled gradient checkpointing for {model.__class__.__name__}")
+        return model
+
+    def _encode_user(self, inputs_embeds, attention_mask):
+        # Recommendation uses the final hidden state, not vocabulary logits or
+        # copies of every layer's hidden state. Keep the same backbone/weights.
+        return self.user_llm.base_model(
+            inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            output_hidden_states=False,
+            return_dict=True,
+            use_cache=False,
+        ).last_hidden_state
 
     def forward(self, interaction):
         items, neg_items, masked_index = interaction  # [batch, 2, seq_len]    #[batch, max_seq_len-1]
@@ -109,7 +126,7 @@ class LLMIDRec(BaseModel):
         input_emb = pos_items_embs[:, :-1, :]  # [batch, max_seq_len, dim]
         target_pos_embs = pos_items_embs[:, 1:, :]  # [batch, max_seq_len, dim]
         neg_embedding_all = neg_items_embs  # [batch, max_seq_len, dim]
-        output_embs = self.user_llm(inputs_embeds=input_emb, attention_mask=masked_index).hidden_states[-1]
+        output_embs = self._encode_user(input_emb, masked_index)
 
         with torch.no_grad():
             self.logit_scale.clamp_(0, np.log(100))
@@ -146,7 +163,7 @@ class LLMIDRec(BaseModel):
 
         item_emb = self.item_id_proj_tower(self.item_embedding(item_seq))
         attention_mask = (item_seq > 0).int()
-        output_embs = self.user_llm(inputs_embeds=item_emb, attention_mask=attention_mask).hidden_states[-1]
+        output_embs = self._encode_user(item_emb, attention_mask)
         seq_output = output_embs[:, -1]
         seq_output = seq_output / seq_output.norm(dim=-1, keepdim=True)
 
