@@ -139,6 +139,9 @@ import importlib.util
 import sys
 from importlib.metadata import PackageNotFoundError, version
 
+# The vendored Llama implementation expects the Transformers 4.x config API
+# (including rope_theta and rope_scaling). Transformers 5 is incompatible.
+transformers_versions = ">=4.50.0,<5"
 requirements = [
     ("packaging", "packaging"),
     ("colorlog", "colorlog"),
@@ -154,7 +157,7 @@ requirements = [
     ("deepspeed", "deepspeed==0.19.2"),
     ("tensorboardX", "tensorboardX"),
     ("sentencepiece", "sentencepiece"),
-    ("transformers", "transformers>=4.50.0"),
+    ("transformers", f"transformers{transformers_versions}"),
     ("wandb", "wandb"),
 ]
 missing = []
@@ -166,8 +169,8 @@ for module, requirement in requirements:
         if module == "deepspeed" and version(module) != "0.19.2":
             missing.append(requirement)
         elif module == "transformers" and importlib.util.find_spec("packaging") is not None:
-            from packaging.version import Version
-            if Version(version(module)) < Version("4.50.0"):
+            from packaging.specifiers import SpecifierSet
+            if version(module) not in SpecifierSet(transformers_versions):
                 missing.append(requirement)
     except PackageNotFoundError:
         missing.append(requirement)
@@ -186,7 +189,10 @@ else:
             importlib.import_module(module)
         except Exception as exc:
             raise SystemExit(f"Cannot import {module} using {sys.executable}: {exc}") from exc
-    print(f"Training dependencies verified; DeepSpeed {version('deepspeed')}")
+    print(
+        f"Training dependencies verified; DeepSpeed {version('deepspeed')}; "
+        f"Transformers {version('transformers')}"
+    )
 PY
 }
 
@@ -203,7 +209,7 @@ if [[ "${BOOTSTRAP_TRAIN_ENV}" == "True" ]]; then
     missing="$(check_train_packages report)"
     if [[ -n "${missing}" ]]; then
         read -r -a missing_packages <<< "${missing}"
-        echo "Installing missing TinyLlama training dependencies: ${missing}"
+        echo "Installing missing or incompatible TinyLlama training dependencies: ${missing}"
         DS_BUILD_OPS=0 "${PYTHON_BIN}" -m pip install --upgrade "${missing_packages[@]}"
     fi
 fi
