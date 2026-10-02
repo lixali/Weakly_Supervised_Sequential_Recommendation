@@ -15,6 +15,7 @@ import json
 from REC.data import *
 from REC.config import Config
 from REC.utils import init_logger, get_model, init_seed, set_color
+from REC.utils.results import report_final_test_results
 from REC.trainer import Trainer
 import torch.distributed as dist
 
@@ -135,6 +136,8 @@ def run_loop(local_rank, config_file=None, saved=True, extra_args=[]):
         test_result = trainer.evaluate(test_loader, load_best_model=False, show_progress=config['show_progress'], init_model=True)
         
         logger.info(set_color('test result', 'yellow') + f': {test_result}')
+        if dist.get_rank() == 0:
+            report_final_test_results(config, test_result, checkpoint_path=ckpt_path)
     
     elif config['finetune_clueweb']:
         ckpt_path = os.path.join(config['checkpoint_dir'], 'pytorch_model.bin')
@@ -161,6 +164,10 @@ def run_loop(local_rank, config_file=None, saved=True, extra_args=[]):
             logger.info(f'Training Ended ' + set_color('best valid ', 'yellow') + f': {best_valid_result}')
 
         # model evaluation
+        if dist.get_rank() == 0:
+            print('\nTraining finished. Evaluating the test set automatically'
+                  + (' using the best saved checkpoint...' if saved else ' using the current model...'),
+                  flush=True)
         # if config["finetune_clueweb"] or config["baseline_train"] or config["clueweb_pretrain"]:
         if config["finetune_clueweb"] or config["baseline_train"]:
             test_result = trainer.evaluate(test_loader, load_best_model=saved, show_progress=config['show_progress'])
@@ -170,6 +177,11 @@ def run_loop(local_rank, config_file=None, saved=True, extra_args=[]):
 
         logger.info(set_color('best valid ', 'yellow') + f': {best_valid_result}')
         logger.info(set_color('test result', 'yellow') + f': {test_result}')
+        if dist.get_rank() == 0:
+            report_final_test_results(
+                config, test_result, best_valid_result=best_valid_result,
+                checkpoint_path=trainer.saved_model_file if saved else None,
+            )
 
         return {
             'best_valid_score': best_valid_score,

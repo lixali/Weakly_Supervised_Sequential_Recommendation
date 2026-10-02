@@ -127,7 +127,7 @@ print the selected dataset, model variant, interpreter, and checkpoint directory
 | `NUM_WORKERS` | `2` |
 | `MAX_ITEM_LIST_LENGTH` | `10` |
 | `EPOCHS` | `201`, with validation-based early stopping |
-| Early-stopping patience | `10` validation checks |
+| `STOPPING_STEP` | `10` (stop after 11 consecutive worse validation checks) |
 | Learning rate, weight decay | `1e-3`, `0.1` |
 | Loss, `NUM_NEGATIVES` | NCE, `0` (share the sampled negatives across the batch) |
 | Distributed strategy | DeepSpeed ZeRO stage 2 |
@@ -146,3 +146,21 @@ For an out-of-memory error, first reduce `TRAIN_BATCH_SIZE`, for example to `8`.
 This changes the effective batch size; keep track of it when comparing results.
 Reducing HSTU's dimensions or using `SASREC_VARIANT=standard` also changes the model
 being evaluated.
+
+## Final test results
+
+Training automatically evaluates the test set using the best saved checkpoint
+after early stopping or after the final epoch. No separate testing command is
+needed. The Colab output ends with a `FINAL TEST RESULTS` block containing Recall
+and NDCG, and prints the location of `test_results.json` in the checkpoint
+directory. For the default runs, these files are:
+
+```text
+model_amazon_industrial_and_scientific_9251_users_52568_interactions_sasrec_paper_baseline/test_results.json
+model_amazon_industrial_and_scientific_9251_users_52568_interactions_hstu_baseline/test_results.json
+```
+
+Use the JSON file's `test_result` values for the paper. `best_valid_result` is
+recorded separately for reference. These outputs are written only after a
+successful test evaluation; a training or evaluation error still fails the run.
+Updating the scripts does not retroactively create results for an earlier run.
