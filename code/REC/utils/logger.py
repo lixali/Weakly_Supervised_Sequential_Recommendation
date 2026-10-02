@@ -102,4 +102,7 @@ def init_logger(config):
     sh.setLevel(level)
     sh.setFormatter(sformatter)
 
-    logging.basicConfig(level=level if rank in [-1, 0] else logging.WARN, handlers=[sh, fh])
+    # Imported libraries may already configure the root logger. Replace those
+    # handlers so training metrics reach both the console and the log file.
+    logging.basicConfig(level=level if rank in [-1, 0] else logging.WARN,
+                        handlers=[sh, fh], force=True)

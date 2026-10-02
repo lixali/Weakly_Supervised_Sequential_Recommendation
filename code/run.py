@@ -187,9 +187,9 @@ if __name__ == '__main__':
     config_file = args.config_file
 
     torch.cuda.set_device(local_rank)
-    dist.init_process_group(backend='nccl')
 
     try:
+        dist.init_process_group(backend='nccl')
         run_loop(local_rank=local_rank, config_file=config_file, extra_args=extra_args)
     except Exception:
         if os.environ.get("POST_MORTEM_DEBUG", "False").lower() in {"1", "true", "yes"}:
@@ -197,3 +197,6 @@ if __name__ == '__main__':
             traceback.print_exc()
             pdb.post_mortem()
         raise
+    finally:
+        if dist.is_initialized():
+            dist.destroy_process_group()
